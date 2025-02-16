@@ -12,6 +12,7 @@ public static class Program
 
         Startup startup = new(builder.Configuration);
         startup.ConfigureServices(builder.Services);
+        startup.ConfigureDatabase(builder.Services);
 
         // Add services to the container.
         builder.Services.AddControllersWithViews();

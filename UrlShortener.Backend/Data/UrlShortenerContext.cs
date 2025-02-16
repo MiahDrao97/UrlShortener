@@ -7,7 +7,7 @@ namespace UrlShortener.Backend.Data;
 /// <summary>
 /// DB Context for this url shortener
 /// </summary>
-public sealed class UrlShortenerContext : DbContext
+public sealed class UrlShortenerContext(DbContextOptions options) : DbContext(options)
 {
     public DbSet<ShortenedUrl> ShortenedUrls => Set<ShortenedUrl>();
 

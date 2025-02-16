@@ -40,7 +40,7 @@ public class ErrorResult
     {
         Message = other.Message;
         Exception = other.Exception;
-        StatusCode = other.StatusCode;
+        Category = other.Category;
         CalledFrom = $"{other.CalledFrom}\n\tcalled from --> {filePath}:{memberName}, {lineNumber}";
     }
 
@@ -60,7 +60,7 @@ public class ErrorResult
     public string CalledFrom { get; }
 
     /// <summary>
-    /// Status code to return, if relevant
+    /// Error category, if relevant
     /// </summary>
-    public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.BadRequest;
+    public string? Category { get; init; }
 }

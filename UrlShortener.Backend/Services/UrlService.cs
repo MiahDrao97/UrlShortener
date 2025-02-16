@@ -33,16 +33,23 @@ public sealed class UrlService(
             return Task.FromResult<ValueResult<ShortenedUrlModel>>(new ErrorResult
             {
                 Message = $"{nameof(input)} cannot be null",
-                StatusCode = HttpStatusCode.InternalServerError,
             });
         }
         if (!Uri.TryCreate(input.Url, in _uriOpts, out Uri? uri))
         {
-            return Task.FromResult<ValueResult<ShortenedUrlModel>>(new ErrorResult { Message = $"Invalid URL '{input.Url}'" });
+            return Task.FromResult<ValueResult<ShortenedUrlModel>>(new ErrorResult
+            {
+                Message = $"Invalid URL '{input.Url}'",
+                Category = Constants.Errors.ClientError
+            });
         }
         if (!uri.Scheme.StartsWith("http", StringComparison.InvariantCulture))
         {
-            return Task.FromResult<ValueResult<ShortenedUrlModel>>(new ErrorResult { Message = $"Submitted URL must use http(s) scheme. Found: '{input.Url}'" });
+            return Task.FromResult<ValueResult<ShortenedUrlModel>>(new ErrorResult
+            {
+                Message = $"Submitted URL must use http(s) scheme. Found: '{input.Url}'",
+                Category = Constants.Errors.ClientError,
+            });
         }
         return CreateCore(input.Url, cancellationToken);
     }
@@ -70,7 +77,6 @@ public sealed class UrlService(
                 return new ErrorResult
                 {
                     Message = $"Reached 10 collisions for alias '{@alias}'",
-                    StatusCode = HttpStatusCode.InternalServerError,
                 };
             }
 
@@ -98,7 +104,6 @@ public sealed class UrlService(
             return new ErrorResult
             {
                 Message = $"Uncaught exception while creating shortened url for '{fullUrl}'",
-                StatusCode = HttpStatusCode.InternalServerError,
             };
         }
     }
@@ -119,14 +124,13 @@ public sealed class UrlService(
         {
             return Task.FromResult<ValueResult<string>>(new ErrorResult { Message = $"Shortened url cannot be null or whitespace. Was: '{@alias ?? "<null>"}'" });
         }
-        // Are we doing the 17-char thing?
         if (@alias.Length != 17)
         {
             _logger.LogError("Alias '{@alias}' is not exactly 17 characters. All aliases are 17 characters long, so we're inferring the alias does not exist in this system.", @alias);
             return Task.FromResult<ValueResult<string>>(new ErrorResult
             {
                 Message = $"No urls found with alias '{@alias}'",
-                StatusCode = HttpStatusCode.NotFound,
+                Category = Constants.Errors.NotFound,
             });
         }
         return LookupCore(@alias, cancellationToken);
@@ -144,7 +148,7 @@ public sealed class UrlService(
                 return new ErrorResult
                 {
                     Message = $"No urls found with alias '{@alias}'",
-                    StatusCode = HttpStatusCode.NotFound,
+                    Category = Constants.Errors.NotFound,
                 };
             }
 
@@ -157,7 +161,7 @@ public sealed class UrlService(
                     return new ErrorResult
                     {
                         Message = $"No urls found with alias '{@alias}'",
-                        StatusCode = HttpStatusCode.NotFound,
+                        Category = Constants.Errors.NotFound,
                     };
                 }
 
@@ -171,7 +175,7 @@ public sealed class UrlService(
                 return new ErrorResult
                 {
                     Message = $"No urls found with alias '{@alias}'",
-                    StatusCode = HttpStatusCode.NotFound,
+                    Category = Constants.Errors.NotFound,
                 };
             }
 
@@ -184,7 +188,6 @@ public sealed class UrlService(
             return new ErrorResult
             {
                 Message = $"Unexpected error while looking up stored url with alias '{alias}'",
-                StatusCode = HttpStatusCode.InternalServerError,
             };
         }
     }

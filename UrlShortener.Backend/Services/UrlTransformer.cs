@@ -1,4 +1,3 @@
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -20,7 +19,6 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
             return new ErrorResult
             {
                 Message = $"{nameof(input)} cannot be null/whitespace. Was: '{input ?? "<null>"}'",
-                StatusCode = HttpStatusCode.InternalServerError,
             };
         }
 
@@ -41,7 +39,6 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
             {
                 Exception = ex,
                 Message = $"Unexpected error while hashing '{input}' with MD5 algorithm.",
-                StatusCode = HttpStatusCode.InternalServerError,
             };
         }
 
@@ -52,7 +49,6 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
             return new ErrorResult
             {
                 Message = $"Unexpected behavior: MD5 algorithm wrote {written} bytes instead of 16 for input '{input}'.",
-                StatusCode = HttpStatusCode.InternalServerError,
             };
         }
 
