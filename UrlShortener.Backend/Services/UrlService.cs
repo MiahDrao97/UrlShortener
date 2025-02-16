@@ -23,36 +23,42 @@ public sealed class UrlService(
     private static readonly UriCreationOptions _uriOpts = new() { DangerousDisablePathAndQueryCanonicalization = true };
 
     /// <inheritdoc />
-    public Task<PayloadResult<ShortenedUrlModel>> Create(UrlInputModel input, CancellationToken cancellationToken = default)
+    public Task<ApiResult<ShortenedUrlModel>> Create(UrlInputModel input, CancellationToken cancellationToken = default)
     {
         if (input is null)
         {
             // 500 on this one: the world is fundamentally broken
             ArgumentNullException ex = new(nameof(input));
             _logger.LogError(ex, "Received null '{param}'", nameof(input));
-            return Task.FromResult<PayloadResult<ShortenedUrlModel>>(ex);
+            return Task.FromResult<ApiResult<ShortenedUrlModel>>(ex);
         }
         if (!Uri.TryCreate(input.Url, in _uriOpts, out Uri? uri))
         {
-            return Task.FromResult<PayloadResult<ShortenedUrlModel>>(new ErrorResponse { Message = $"Invalid URL '{input.Url}'" });
+            return Task.FromResult<ApiResult<ShortenedUrlModel>>(new ErrorResponse { Message = $"Invalid URL '{input.Url}'" });
         }
         if (!uri.Scheme.StartsWith("http", StringComparison.InvariantCulture))
         {
-            return Task.FromResult<PayloadResult<ShortenedUrlModel>>(new ErrorResponse { Message = $"Submitted URL must use http(s) scheme. Found: '{input.Url}'" });
+            return Task.FromResult<ApiResult<ShortenedUrlModel>>(new ErrorResponse { Message = $"Submitted URL must use http(s) scheme. Found: '{input.Url}'" });
         }
         return CreateCore(input.Url, cancellationToken);
     }
 
-    private async Task<PayloadResult<ShortenedUrlModel>> CreateCore(string fullUrl, CancellationToken cancellationToken)
+    private async Task<ApiResult<ShortenedUrlModel>> CreateCore(string fullUrl, CancellationToken cancellationToken)
     {
         try
         {
-            string alias = _transformer.CreateAlias(fullUrl);
+            ValueResult<string> aliasResult = _transformer.CreateAlias(fullUrl);
+            if (!aliasResult.IsSuccess(out string? @alias))
+            {
+                _logger.LogError(aliasResult.Exception, "Encountered error while creating alias for '{input}'", fullUrl);
+                return ApiResult<ShortenedUrlModel>.FromError(aliasResult);
+            }
+            // alias is 16 chars, and then the 17th handles up to 10 collisions (we're talking heat-death-of-the-universe type of collision-checking here)
 
             ShortenedUrl newRow = new()
             {
                 FullUrl = fullUrl,
-                Alias = _transformer.CreateAlias(fullUrl),
+                Alias = @alias,
                 Created = DateTime.UtcNow,
             };
 
@@ -78,16 +84,22 @@ public sealed class UrlService(
     }
 
     /// <inheritdoc />
-    public Task<PayloadResult<string>> Lookup(string urlAlias, CancellationToken cancellationToken = default)
+    public Task<ApiResult<string>> Lookup(string urlAlias, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(urlAlias))
         {
-            return Task.FromResult<PayloadResult<string>>(new ErrorResponse { Message = $"Shortened url cannot be null or whitespace. Was: '{urlAlias ?? "<null>"}'" });
+            return Task.FromResult<ApiResult<string>>(new ErrorResponse { Message = $"Shortened url cannot be null or whitespace. Was: '{urlAlias ?? "<null>"}'" });
+        }
+        // Are we doing the 17-char thing?
+        if (urlAlias.Length != 17)
+        {
+            _logger.LogError("Alias '{urlAlias}' is not exactly 17 characters. All aliases are 17 characters long, so we're inferring the alias does not exist in this system.", urlAlias);
+            return Task.FromResult<ApiResult<string>>(new NotFound());
         }
         return LookupCore(urlAlias, cancellationToken);
     }
 
-    private async Task<PayloadResult<string>> LookupCore(string alias, CancellationToken cancellationToken)
+    private async Task<ApiResult<string>> LookupCore(string alias, CancellationToken cancellationToken)
     {
         try
         {

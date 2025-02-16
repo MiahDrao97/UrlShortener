@@ -6,9 +6,12 @@ public static class Program
 {
     internal static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
         builder.Logging.AddNLog("nlog.config");
+
+        Startup startup = new(builder.Configuration);
+        startup.ConfigureServices(builder.Services);
 
         // Add services to the container.
         builder.Services.AddControllersWithViews();

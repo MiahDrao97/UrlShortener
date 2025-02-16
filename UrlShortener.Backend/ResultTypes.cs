@@ -13,10 +13,10 @@ public readonly struct Ok<T>(T value)
 }
 
 /// <summary>
-/// No content response (204)
+/// Ok result with "void" value (helpful for a no content response)
 /// </summary>
 [StructLayout(LayoutKind.Auto, Size = 1)]
-public readonly struct NoContent
+public readonly struct Ok
 { }
 
 /// <summary>

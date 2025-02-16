@@ -11,5 +11,5 @@ public interface IUrlTransformer
     /// <remarks>
     /// Does not validate whether or not <paramref name="input"/> is actually a URL since that has no effect on the output. Caller should verify first.
     /// </remarks>
-    public string CreateAlias(string input);
+    public ValueResult<string> CreateAlias(string input);
 }
