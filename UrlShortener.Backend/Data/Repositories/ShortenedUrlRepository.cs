@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
 using UrlShortener.Backend.Data.Entities;
 
@@ -49,11 +50,11 @@ public sealed class ShortenedUrlRepository(
     {
         try
         {
-            await _context.ShortenedUrls.AddAsync(row, cancellationToken);
+            EntityEntry<ShortenedUrl> added = await _context.ShortenedUrls.AddAsync(row, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug("Successfully inserted row with alias '{alias}' from url '{url}'", row.Alias, row.FullUrl);
-            return row;
+            return added.Entity;
         }
         catch (Exception ex)
         {

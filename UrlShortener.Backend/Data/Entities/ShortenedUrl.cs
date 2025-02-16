@@ -33,4 +33,14 @@ public sealed class ShortenedUrl
     /// Number of times this alias has been used
     /// </summary>
     public int Hits { get; set; }
+
+    /// <summary>
+    /// Offset used for duplicate detection
+    /// </summary>
+    public short Offset { get; set; }
+
+    /// <summary>
+    /// Date this shortened url was last hit
+    /// </summary>
+    public DateTime? LastHit { get; set; }
 }

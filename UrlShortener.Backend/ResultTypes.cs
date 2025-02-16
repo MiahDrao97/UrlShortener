@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace UrlShortener.Backend;
@@ -20,17 +21,46 @@ public readonly struct Ok
 { }
 
 /// <summary>
-/// Error response (presumably 400-level)
+/// Error result
 /// </summary>
-public class ErrorResponse
+public class ErrorResult
 {
+    /// <summary>
+    /// Construct an error response
+    /// </summary>
+    /// <remarks>
+    /// Leave the arguments as default since that will automatically capture the caller file path, calling member, and line number
+    /// </remarks>
+    public ErrorResult([CallerFilePath] string? filePath = null, [CallerMemberName] string? memberName = null, [CallerLineNumber] int lineNumber = 0)
+    {
+        CalledFrom = $"{filePath}:{memberName}, {lineNumber}";
+    }
+
+    internal ErrorResult(ErrorResult other, string? filePath, string? memberName, int lineNumber)
+    {
+        Message = other.Message;
+        Exception = other.Exception;
+        StatusCode = other.StatusCode;
+        CalledFrom = $"{other.CalledFrom}\n\tcalled from --> {filePath}:{memberName}, {lineNumber}";
+    }
+
     /// <summary>
     /// Message to show the client
     /// </summary>
-    public string? Message { get; set; }
+    public string? Message { get; init; }
 
     /// <summary>
-    /// Status code to return
+    /// Exception, if relevant
     /// </summary>
-    public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.BadRequest;
+    public Exception? Exception { get; init; }
+
+    /// <summary>
+    /// Called from this location
+    /// </summary>
+    public string CalledFrom { get; }
+
+    /// <summary>
+    /// Status code to return, if relevant
+    /// </summary>
+    public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.BadRequest;
 }

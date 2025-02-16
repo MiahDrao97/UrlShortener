@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -15,9 +16,12 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         // server error
         if (string.IsNullOrWhiteSpace(input))
         {
-            ArgumentException argEx = new($"{nameof(input)} cannot be null or whitespace. Was '{input ?? "<null>"}'", nameof(input));
-            _logger.LogError(argEx, "Received invalid value for parameter '{param}'", nameof(input));
-            return argEx;
+            _logger.LogError("Received invalid value for parameter '{param}'", nameof(input));
+            return new ErrorResult
+            {
+                Message = $"{nameof(input)} cannot be null/whitespace. Was: '{input ?? "<null>"}'",
+                StatusCode = HttpStatusCode.InternalServerError,
+            };
         }
 
         Span<byte> bytes = stackalloc byte[16]; // hash results in 128 bits (16 bytes)
@@ -33,15 +37,23 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error while hashing '{input}' with MD5 algorithm", input);
-            return ex;
+            return new ErrorResult
+            {
+                Exception = ex,
+                Message = $"Unexpected error while hashing '{input}' with MD5 algorithm.",
+                StatusCode = HttpStatusCode.InternalServerError,
+            };
         }
 
         // server error
         if (written != 16)
         {
-            InvalidOperationException ex = new($"Unexpected behavior: MD5 algorithm wrote {written} bytes instead of 16 for input '{input}'.");
-            _logger.LogError(ex, "Encountered unexpected behavior from MD5 algorithm while creating alias for input '{input}'", input);
-            return ex;
+            _logger.LogError("Encountered unexpected behavior from MD5 algorithm while creating alias for input '{input}'", input);
+            return new ErrorResult
+            {
+                Message = $"Unexpected behavior: MD5 algorithm wrote {written} bytes instead of 16 for input '{input}'.",
+                StatusCode = HttpStatusCode.InternalServerError,
+            };
         }
 
         return new Ok<string>(Encoding.ASCII.GetString(bytes));
