@@ -22,6 +22,7 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
             };
         }
 
+        _logger.LogDebug("Creating hash for '{input}'", input);
         Span<byte> bytes = stackalloc byte[16]; // hash results in 128 bits (16 bytes)
         int written;
         try

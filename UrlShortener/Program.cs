@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.OData;
 using NLog.Web;
 
 namespace UrlShortener;
@@ -15,7 +16,7 @@ public static class Program
         startup.ConfigureDatabase(builder.Services);
 
         // Add services to the container.
-        builder.Services.AddControllersWithViews();
+        builder.Services.AddControllersWithViews().AddOData(static opts => opts.Select().SetMaxTop(100).Filter());
 
         WebApplication app = builder.Build();
 

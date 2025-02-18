@@ -1,4 +1,3 @@
-using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -16,7 +15,7 @@ public readonly struct Ok<T>(T value)
 /// <summary>
 /// Ok result with "void" value (helpful for a no content response)
 /// </summary>
-[StructLayout(LayoutKind.Auto, Size = 1)]
+[StructLayout(LayoutKind.Auto, Size = 0)]
 public readonly struct Ok
 { }
 
@@ -33,7 +32,7 @@ public class ErrorResult
     /// </remarks>
     public ErrorResult([CallerFilePath] string? filePath = null, [CallerMemberName] string? memberName = null, [CallerLineNumber] int lineNumber = 0)
     {
-        CalledFrom = $"{filePath}:{memberName}, {lineNumber}";
+        CalledFrom = $"{filePath}<{memberName}>:{lineNumber}";
     }
 
     internal ErrorResult(ErrorResult other, string? filePath, string? memberName, int lineNumber)

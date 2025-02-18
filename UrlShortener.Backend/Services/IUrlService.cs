@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.OData.Query;
-using UrlShortener.Backend.Models;
+using UrlShortener.Backend.Data;
 
 namespace UrlShortener.Backend.Services;
 
@@ -14,12 +14,12 @@ public interface IUrlService
     /// <summary>
     /// Create a shortened url from client input
     /// </summary>
-    public Task<ValueResult<ShortenedUrlModel>> Create(UrlInputModel input, CancellationToken cancellationToken = default);
+    public Task<ValueResult<ShortenedUrlOuput>> Create(UrlInput input, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Query url's stored in the server
     /// </summary>
-    public IQueryable<ShortenedUrlModel> Query(ODataQueryOptions queryOptions);
+    public IQueryable<ShortenedUrlOuput> Query(ODataQueryOptions queryOptions);
 
     /// <summary>
     /// Lookup a url with a shortned alias

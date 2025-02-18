@@ -18,11 +18,6 @@ public class HomeController(
         return View();
     }
 
-    public IActionResult Privacy()
-    {
-        return View();
-    }
-
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
     {
@@ -34,6 +29,11 @@ public class HomeController(
     {
         _logger.LogDebug("URL NOT FOUND: {alias}", @alias);
         return View(new UrlNotFoundModel { Alias = @alias });
+    }
+
+    public IActionResult List()
+    {
+        return View("/Home/AllUrls");
     }
 
     [HttpGet]
