@@ -25,6 +25,15 @@ public sealed class ShortenedUrl
     public string FullUrl { get; set; } = null!;
 
     /// <summary>
+    /// Primarily for debugging purposes
+    /// </summary>
+    /// <summary>
+    /// Appends the offset at the end of <see cref="Alias"/>, base64-encodes it, and escapes non-alphanumeric characters with url-safe ones.
+    /// </summary>
+    [Required]
+    public string UrlSafeAlias { get; set; } = null!;
+
+    /// <summary>
     /// Date created
     /// </summary>
     public DateTime Created { get; set; }

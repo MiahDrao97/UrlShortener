@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
@@ -12,13 +13,11 @@ namespace UrlShortener.Backend.Services;
 
 /// <inheritdoc cref="IUrlService" />
 public sealed class UrlService(
-    IUrlTransformer transformer,
     IShortenedUrlRepository repository,
     IMapper mapper,
     IConfigurationProvider mappingConfig,
     ILogger<UrlService> logger) : IUrlService
 {
-    private readonly IUrlTransformer _transformer = transformer;
     private readonly IShortenedUrlRepository _repository = repository;
     private readonly IMapper _mapper = mapper;
     private readonly IConfigurationProvider _mappingConfig = mappingConfig;
@@ -61,10 +60,10 @@ public sealed class UrlService(
     {
         try
         {
-            ValueResult<string> aliasResult = _transformer.CreateAlias($"{uri.DnsSafeHost}{uri.PathAndQuery}"); // leave out scheme
+            ValueResult<string> aliasResult = CreateAlias($"{uri.DnsSafeHost}{uri.PathAndQuery}"); // leave out scheme
             if (!aliasResult.IsSuccess(out string? @alias))
             {
-                _logger.LogError(aliasResult.Error.Exception, "Encountered error while creating alias for '{input}': {reason} -> {calledFrom}",
+                _logger.LogError(aliasResult.Error.Exception, "Encountered unexpected error while creating alias for '{input}': {reason} -> {calledFrom}",
                     fullUrl,
                     aliasResult.Error.Message,
                     aliasResult.Error.CalledFrom);
@@ -96,6 +95,8 @@ public sealed class UrlService(
                 Offset = (short)existing.Length,
                 Created = DateTime.UtcNow,
             };
+            string urlSafeAlias = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{@alias}{existing.Length}")).Base64ToUrlSafe();
+            newRow.UrlSafeAlias = urlSafeAlias;
 
             newRow = await _repository.Insert(newRow, cancellationToken);
             return new Ok<ShortenedUrlOuput>(_mapper.Map<ShortenedUrlOuput>(newRow));
@@ -107,6 +108,7 @@ public sealed class UrlService(
             return new ErrorResult
             {
                 Message = $"Uncaught exception while creating shortened url for '{fullUrl}'",
+                Exception = ex,
             };
         }
     }
@@ -203,5 +205,43 @@ public sealed class UrlService(
                 Message = $"Unexpected error while looking up stored url with alias '{alias}'",
             };
         }
+    }
+
+    private ValueResult<string> CreateAlias(string input)
+    {
+        _logger.LogDebug("Creating hash for '{input}'", input);
+        Span<byte> bytes = stackalloc byte[16]; // hash results in 128 bits (16 bytes)
+        int written;
+        try
+        {
+            // choosing to disable this warning because we're not using this for cryptographic purposes
+#pragma warning disable CA5351
+            // this hash algorithm creates a 128-bit hash, regardless of the input: perfect for creating aliases of the same length
+            written = MD5.HashData(Encoding.UTF8.GetBytes(input), bytes);
+#pragma warning restore CA5351
+        }
+        catch (Exception ex)
+        {
+            // not entirely sure what would cause this...
+            _logger.LogError(ex, "Unexpected error while hashing '{input}' with MD5 algorithm", input);
+            return new ErrorResult
+            {
+                Exception = ex,
+                Message = $"Unexpected error while hashing '{input}' with MD5 algorithm.",
+            };
+        }
+
+        // or this...
+        if (written != 16)
+        {
+            _logger.LogError("Encountered unexpected behavior from MD5 algorithm while creating alias for input '{input}'", input);
+            return new ErrorResult
+            {
+                Message = $"Unexpected behavior: MD5 algorithm wrote {written} bytes instead of 16 for input '{input}'.",
+            };
+        }
+
+        return new Ok<string>(Encoding.ASCII.GetString(bytes));
+
     }
 }

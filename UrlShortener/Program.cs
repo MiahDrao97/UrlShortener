@@ -11,7 +11,7 @@ public static class Program
 
         builder.Logging.AddNLog("nlog.config");
 
-        Startup startup = new(builder.Configuration);
+        Startup startup = new();
         startup.ConfigureServices(builder.Services);
         startup.ConfigureDatabase(builder.Services);
 

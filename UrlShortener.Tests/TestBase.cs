@@ -32,6 +32,11 @@ public abstract class TestBase
     private readonly ServiceCollection _services = new();
 
     /// <summary>
+    /// Inject directly into the service collection
+    /// </summary>
+    protected IServiceCollection Services => _services;
+
+    /// <summary>
     /// Use this for logic attached to integration tests (i.e. using un-mocked services)
     /// </summary>
     /// <remarks>

@@ -10,10 +10,8 @@ namespace UrlShortener;
 /// <summary>
 /// Startup class that handles dependency injection and app configuration
 /// </summary>
-public class Startup(IConfiguration configuration)
+public class Startup
 {
-    public IConfiguration Configuration { get; } = configuration;
-
     /// <summary>
     /// Configure services for dependency injection
     /// </summary>
@@ -22,7 +20,6 @@ public class Startup(IConfiguration configuration)
         services.AddLogging();
 
         services.AddScoped<IUrlService, UrlService>();
-        services.AddScoped<IUrlTransformer, UrlTransformer>();
         services.AddScoped<IShortenedUrlRepository, ShortenedUrlRepository>();
 
         services.AddAutoMapper(static opts => opts.AddMaps([typeof(ShortenedUrlProfile)]));
