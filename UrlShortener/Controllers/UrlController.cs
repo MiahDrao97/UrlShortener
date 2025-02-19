@@ -40,6 +40,10 @@ public sealed class UrlController(
                 "alias_desc" => query.OrderByDescending(s => s.UrlSafeAlias),
                 "date_asc" => query.OrderBy(s => s.Created),
                 "date_desc" => query.OrderByDescending(s => s.Created),
+                "hits_asc" => query.OrderBy(s => s.Hits),
+                "hits_desc" => query.OrderByDescending(s => s.Hits),
+                "last_hit_asc" => query.OrderBy(s => s.LastHit),
+                "last_hit_desc" => query.OrderByDescending(s => s.LastHit),
                 _ => query,
             };
 
@@ -52,6 +56,8 @@ public sealed class UrlController(
                     FullUrl = x.FullUrl,
                     Alias = x.UrlSafeAlias,
                     Created = x.Created.ToLocalTime(),
+                    Hits = x.Hits,
+                    LastHit = x.LastHit?.ToLocalTime(),
                     HostName = HttpContext.Request.Host.ToString()
                 });
 
@@ -94,7 +100,10 @@ public sealed class UrlController(
             {
                 FullUrl = ok.Value.FullUrl,
                 Alias = ok.Value.UrlSafeAlias,
-                HostName = HttpContext?.Request?.Host.ToString()
+                Created = ok.Value.Created.ToLocalTime(),
+                Hits = ok.Value.Hits,
+                LastHit = ok.Value.LastHit?.ToLocalTime(),
+                HostName = HttpContext.Request.Host.ToString()
             }),
             err =>
             {

@@ -22,4 +22,9 @@ public interface IShortenedUrlRepository
     /// Insert a new <see cref="ShortenedUrl"/> row
     /// </summary>
     public Task<ShortenedUrl> Insert(ShortenedUrl row, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Update a <see cref="ShortenedUrl"/>
+    /// </summary>
+    public Task Update(ShortenedUrl row, CancellationToken cancellationToken = default);
 }

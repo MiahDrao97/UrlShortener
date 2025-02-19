@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Repositories;
@@ -19,6 +20,9 @@ public class Startup
 
         services.AddScoped<IUrlService, UrlService>();
         services.AddScoped<IShortenedUrlRepository, ShortenedUrlRepository>();
+        services.AddSingleton(Channel.CreateBounded<UrlTelemetry>(new BoundedChannelOptions(1000) { FullMode = BoundedChannelFullMode.Wait }));
+
+        services.AddHostedService<TelemetryBackgroundService>();
     }
 
     /// <summary>

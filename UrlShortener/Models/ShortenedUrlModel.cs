@@ -35,6 +35,16 @@ public class ShortenedUrlModel
     public string? HostName { get; set; }
 
     /// <summary>
+    /// Date this url was last hit
+    /// </summary>
+    public DateTime? LastHit { get; set; }
+
+    /// <summary>
+    /// Number of times this url has been hit
+    /// </summary>
+    public int Hits { get; set; }
+
+    /// <summary>
     /// Full alias url (alias appended to host name)
     /// </summary>
     public string FullAliasUrl => string.IsNullOrWhiteSpace(HostName) ? Alias : $"{HostName}/{Alias}";

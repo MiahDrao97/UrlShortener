@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Channels;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Data.Repositories;
 
@@ -12,9 +14,11 @@ namespace UrlShortener.Backend.Services;
 /// <inheritdoc cref="IUrlService" />
 public sealed class UrlService(
     IShortenedUrlRepository repository,
+    Channel<UrlTelemetry> channel,
     ILogger<UrlService> logger) : IUrlService
 {
     private readonly IShortenedUrlRepository _repository = repository;
+    private readonly Channel<UrlTelemetry> _channel = channel;
     private readonly ILogger<UrlService> _logger = logger;
 
     private static readonly UriCreationOptions _uriOpts = new() { DangerousDisablePathAndQueryCanonicalization = true };
@@ -166,7 +170,12 @@ public sealed class UrlService(
 
                 if (found.FirstOrDefault(x => x.Offset == offset) is ShortenedUrl success)
                 {
-                    // TODO : record hits in bkgd service
+                    // notify background service to record telemetry
+                    await _channel.Writer.WriteAsync(new UrlTelemetry
+                    {
+                        DateHit = DateTime.UtcNow,
+                        RowId = success.RowId
+                    }, cancellationToken);
                     return new Ok<string>(success.FullUrl);
                 }
 
@@ -178,8 +187,13 @@ public sealed class UrlService(
                 };
             }
 
-            // TODO : record hits in bkgd service
-            return new Ok<string>(found.First().FullUrl);
+            // notify background service to record telemetry
+            await _channel.Writer.WriteAsync(new UrlTelemetry
+            {
+                DateHit = DateTime.UtcNow,
+                RowId = found[0].RowId
+            }, cancellationToken);
+            return new Ok<string>(found[0].FullUrl);
         }
         catch (Exception ex)
         {
@@ -187,6 +201,46 @@ public sealed class UrlService(
             return new ErrorResult
             {
                 Message = $"Unexpected error while looking up stored url with alias '{alias}'",
+            };
+        }
+    }
+
+    public Task<Result> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default)
+    {
+        if (telemetry is null)
+        {
+            return Task.FromResult<Result>(new ErrorResult { Message = $"{nameof(telemetry)} cannot be null" });
+        }
+        return RecordHitCore(telemetry, cancellationToken);
+    }
+
+    private async Task<Result> RecordHitCore(UrlTelemetry telemetry, CancellationToken cancellationToken)
+    {
+        try
+        {
+            ShortenedUrl? row = await _repository.Query().FirstOrDefaultAsync(u => u.RowId == telemetry.RowId, cancellationToken);
+            if (row is null)
+            {
+                return new ErrorResult
+                {
+                    Category = Constants.Errors.NotFound,
+                    Message = $"Row with row id {telemetry.RowId} was not found.",
+                };
+            }
+
+            row.Hits += 1;
+            row.LastHit = telemetry.DateHit;
+            await _repository.Update(row, cancellationToken);
+
+            return new Ok();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Encountered unexpected error while recording hit on url {rid}", telemetry.RowId);
+            return new ErrorResult
+            {
+                Exception = ex,
+                Message = $"Encountered unexpected error while recording hit on url {telemetry.RowId}",
             };
         }
     }

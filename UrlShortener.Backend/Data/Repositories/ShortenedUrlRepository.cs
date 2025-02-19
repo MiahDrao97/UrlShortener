@@ -62,4 +62,25 @@ public sealed class ShortenedUrlRepository(
             throw;
         }
     }
+
+    /// <inheritdoc />
+    public Task Update(ShortenedUrl row, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return UpdateCore(row, cancellationToken);
+    }
+
+    private async Task UpdateCore(ShortenedUrl row, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _context.Update(row);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update row with alias '{alias}' from url '{url}'", row.Alias, row.FullUrl);
+            throw;
+        }
+    }
 }

@@ -1,3 +1,4 @@
+using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Entities;
 
 namespace UrlShortener.Backend.Services;
@@ -24,4 +25,9 @@ public interface IUrlService
     /// Lookup a url with a shortned alias
     /// </summary>
     public Task<ValueResult<string>> Lookup(string @alias, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Record a hit on one of our shortened url's being hit
+    /// </summary>
+    public Task<Result> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default);
 }
