@@ -1,8 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.OData.Query;
 using UrlShortener.Backend;
-using UrlShortener.Backend.Data;
+using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Services;
 using UrlShortener.Models;
 
@@ -16,34 +15,39 @@ public sealed class UrlController(
     private readonly IUrlService _urlService = urlService;
     private readonly ILogger<UrlController> _logger = logger;
 
-    [EnableQuery(MaxTop = 100)]
     [HttpGet]
     [Route("all")]
-    public IQueryable<ShortenedUrlOuput> Get([ODataQueryParameterBinding] ODataQueryOptions options)
+    public IActionResult All()
     {
-        return _urlService.Query(options);
+        return View(new AllUrlsModel(_urlService));
     }
 
     [HttpPost]
     [Route("create")]
-    public async Task<IActionResult> Create([Required][FromBody] UrlInput input)
+    public async Task<IActionResult> Create([Required] ShortenedUrlModel url)
     {
-        // kinda redundant since the framework should catch this, but...
-        if (input is null)
+        // a bit redundant, but...
+        if (url is null)
         {
-            _logger.LogError("Somehow the framework did not catch that there was no body sent to this endpoint.");
-            return BadRequest("Expected body");
+            _logger.LogError("Somehow the framework did not catch that url was null.");
+            return BadRequest("Expected url input");
         }
 
-        _logger.LogDebug("Creating alias for '{input}'", input.Url);
-        ValueResult<ShortenedUrlOuput> result = await _urlService.Create(input);
+        _logger.LogDebug("Creating alias for '{input}'", url.UrlInput);
+        // let the service validate it
+        ValueResult<ShortenedUrl> result = await _urlService.Create(url.UrlInput!);
         return result.Match<IActionResult>(
-            static ok => new OkObjectResult(ok.Value), // TODO : this or a view?
+            ok => new RedirectToActionResult("Index", "Home", new ShortenedUrlModel
+            {
+                FullUrl = ok.Value.FullUrl,
+                Alias = ok.Value.UrlSafeAlias,
+                HostName = HttpContext?.Request?.Host.ToString()
+            }),
             err =>
             {
                 _logger.LogError(err.Exception, "{category} result from alias for url '{url}': {reason} --> {calledFrom}",
                     err.Category ?? "Error",
-                    input.Url,
+                    url.UrlInput,
                     err.Message,
                     err.CalledFrom);
                 return err.Category switch

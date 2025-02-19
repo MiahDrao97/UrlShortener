@@ -1,18 +1,53 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
 }
-@model UrlShortener.Backend.Data.UrlInput;
+@model UrlShortener.Models.ShortenedUrlModel;
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
 <div>
     <h3>
         Create a short URL here:
     </h3>
-    <i>(e.g. https://www.w3schools.com)</i>
-    <form method="post" asp-route="/urls/create">
-        <input action="submit" asp-for="Url"/>
+    <form method="post" asp-controller="urls" asp-action="create">
+        <input
+            id="url-submission-input"
+            class="btn btn-sm btn-outline-dark text-start"
+            action="form-control"
+            asp-for="UrlInput"
+            placeholder="@(string.IsNullOrEmpty(Model?.FullAliasUrl) ? "(e.g. https://www.w3schools.com)" : "enter another...")"
+            oninput="validateInput()"
+            size="80" />
+        <button id="url-submission-btn" class="btn btn-sm btn-primary" type="submit" disabled>Submit</button>
     </form>
+    <script>
+        function validateInput() {
+            let input = document.getElementById('url-submission-input');
+            let btn = document.getElementById('url-submission-btn');
+
+            if (input.value && input.value.trim() !== '') {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        }
+    </script>
+    <div hidden="@string.IsNullOrEmpty(Model?.FullAliasUrl)">
+        <div>
+            <label>
+                Original Url:
+                <i id="original-url">@Model?.FullUrl</i>
+            </label>
+        </div>
+        <div>
+            <label>
+                Shortened Url:
+                <i id="full-alias-url" class="text-truncate col-6">@Model?.FullAliasUrl</i>
+            </label>
+            <script>
+                function copyShortenedUrl() {
+                    navigator.clipboard.writeText('@Model?.FullAliasUrl')
+                }
+            </script>
+            <button class="btn btn-outline-dark btn-sm align-content-center" onclick="copyShortenedUrl()">Copy</button>
+        </div>
+    </div>
 </div>

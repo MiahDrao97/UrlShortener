@@ -1,19 +1,20 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using UrlShortener.Backend;
-using UrlShortener.Backend.Data;
+using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Services;
 using UrlShortener.Controllers;
 using UrlShortener.Models;
 
-namespace UrlShortener.Tests.Services;
+namespace UrlShortener.Tests.Controllers;
 
 #pragma warning disable NUnit2045
 
 public sealed partial class UrlControllerTests : TestBase<UrlController>
 {
     [ResetMe]
-    private UrlInput? _urlInput;
+    private ShortenedUrlModel? _urlInput;
 
     [ResetMe]
     private IActionResult? _actionResult;
@@ -41,11 +42,11 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
         AddMockOf<IUrlService>();
     }
 
-    private void GivenUrlInput(UrlInput input) => _urlInput = input;
+    private void GivenUrlInput(string input) => _urlInput = new ShortenedUrlModel { UrlInput = input, Alias = null!, FullUrl = null! };
 
-    private void GivenUrlServiceReturns(ValueResult<ShortenedUrlOuput> output)
+    private void GivenUrlServiceReturns(ValueResult<ShortenedUrl> output)
     {
-        UrlService.Setup(static u => u.Create(It.IsAny<UrlInput>(), It.IsAny<CancellationToken>())).ReturnsAsync(output);
+        UrlService.Setup(static u => u.Create(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(output);
     }
 
     private async Task WhenCreating()
@@ -63,21 +64,10 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
     [Test]
     [TestOf(nameof(UrlController.Create))]
     [Category(UnitTest)]
-    public void Create_Returns400Result_WhenInputIsNull()
-    {
-        GivenUrlInput(null!);
-        ThenNoExceptions(WhenCreating);
-        Assert.That(_actionResult is BadRequestObjectResult badRequest
-            && (string)badRequest.Value! == "Expected body");
-    }
-
-    [Test]
-    [TestOf(nameof(UrlController.Create))]
-    [Category(UnitTest)]
-    public void Create_ReturnsErrorPage_WhenInputIsInvalid()
+    public void Create_ReturnsErrorPage_WhenInputIsInvalid([Values(null, "", "  ", "asdf")] string? url)
     {
         string errMessage = "blarf";
-        GivenUrlInput(new UrlInput { Url = "Asdf" });
+        GivenUrlInput(url!);
         GivenUrlServiceReturns(new ErrorResult { Message = errMessage, Category = Constants.Errors.ClientError });
 
         ThenNoExceptions(WhenCreating);
@@ -92,7 +82,7 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
     [Category(UnitTest)]
     public void Create_ReturnsErrorPage_WhenUnexpectedErrorOccurs()
     {
-        GivenUrlInput(new UrlInput { Url = "Asdf" });
+        GivenUrlInput("Asdf");
         GivenUrlServiceReturns(new ErrorResult { Message = "blarf" });
 
         ThenNoExceptions(WhenCreating);
@@ -104,19 +94,27 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
 
     [Test]
     [TestOf(nameof(UrlController.Create))]
+    [TestOf(nameof(HomeController.Get))]
     [Category(IntegrationTest)]
     [IntegrationMode]
     public void Create_Ok()
     {
-        const string expectedAlias = "Pz8OFjIBP01oI2BBUwE_PzA~";
-        const string url = "https://www.metal-archives.com/bands/Abigor/1066";
-        GivenUrlInput(new UrlInput { Url = url });
+        const string expectedAlias = "Pw0_dBc_Pz9YPxtOPz8_NzA~";
+        const string url = "https://ziglang.org/documentation/master/";
+        GivenUrlInput(url);
 
         ThenNoExceptions(WhenCreating);
-        ThenActionResultIs(out OkObjectResult ok);
-        Assert.That(ok.Value, Is.TypeOf<ShortenedUrlOuput>());
-        Assert.That(((ShortenedUrlOuput)ok.Value!).Alias, Is.EqualTo(expectedAlias));
-        Assert.That(((ShortenedUrlOuput)ok.Value!).FullUrl, Is.EqualTo(url));
+        ThenActionResultIs(out RedirectToActionResult redirect);
+        Assert.That(redirect.RouteValues?["Alias"], Is.EqualTo(expectedAlias));
+        Assert.That(redirect.RouteValues?["FullUrl"], Is.EqualTo(url));
+
+        // now can we get it?
+        HomeController home = new(GetRegistered<IUrlService>(), new Mock<ILogger<HomeController>>().Object);
+        IActionResult? result = null;
+        Assert.DoesNotThrowAsync(async () => result = await home.Get(expectedAlias));
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.TypeOf<RedirectResult>());
+        Assert.That(((RedirectResult)result!).Url, Is.EqualTo(url));
     }
     #endregion
 }

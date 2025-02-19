@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
-using UrlShortener.Backend;
 using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Repositories;
 using UrlShortener.Backend.Services;
@@ -21,10 +19,6 @@ public class Startup
 
         services.AddScoped<IUrlService, UrlService>();
         services.AddScoped<IShortenedUrlRepository, ShortenedUrlRepository>();
-
-        services.AddAutoMapper(static opts => opts.AddMaps([typeof(ShortenedUrlProfile)]));
-
-        services.AddODataQueryFilter();
     }
 
     /// <summary>

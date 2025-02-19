@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace UrlShortener.Models;
 
 /// <summary>
@@ -5,6 +7,13 @@ namespace UrlShortener.Models;
 /// </summary>
 public class ShortenedUrlModel
 {
+    /// <summary>
+    /// Url that's being aliased (input from form)
+    /// </summary>
+    [Required]
+    [Url]
+    public string UrlInput { get; set; } = null!;
+
     /// <summary>
     /// Url that's being aliased
     /// </summary>

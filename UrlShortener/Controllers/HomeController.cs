@@ -13,9 +13,9 @@ public class HomeController(
     private readonly IUrlService _urlService = urlService;
     private readonly ILogger<HomeController> _logger = logger;
 
-    public IActionResult Index()
+    public IActionResult Index(ShortenedUrlModel? model)
     {
-        return View();
+        return View("Index", model);
     }
 
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
@@ -33,7 +33,7 @@ public class HomeController(
 
     public IActionResult List()
     {
-        return View("/Home/AllUrls");
+        return View();
     }
 
     [HttpGet]
@@ -43,7 +43,6 @@ public class HomeController(
         ValueResult<string> result = await _urlService.Lookup(@alias);
         if (result.IsSuccess(out string? redirectUrl))
         {
-            // FIXME : Too many redirects when passing invalid alias that happens to be a real view path
             return new RedirectResult(redirectUrl);
         }
 

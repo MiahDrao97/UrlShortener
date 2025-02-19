@@ -2,10 +2,8 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using AutoMapper;
-using AutoMapper.QueryableExtensions;
-using Microsoft.AspNetCore.OData.Query;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Data.Repositories;
 
@@ -14,49 +12,36 @@ namespace UrlShortener.Backend.Services;
 /// <inheritdoc cref="IUrlService" />
 public sealed class UrlService(
     IShortenedUrlRepository repository,
-    IMapper mapper,
-    IConfigurationProvider mappingConfig,
     ILogger<UrlService> logger) : IUrlService
 {
     private readonly IShortenedUrlRepository _repository = repository;
-    private readonly IMapper _mapper = mapper;
-    private readonly IConfigurationProvider _mappingConfig = mappingConfig;
     private readonly ILogger<UrlService> _logger = logger;
 
     private static readonly UriCreationOptions _uriOpts = new() { DangerousDisablePathAndQueryCanonicalization = true };
 
     /// <inheritdoc />
-    public Task<ValueResult<ShortenedUrlOuput>> Create(UrlInput input, CancellationToken cancellationToken = default)
+    public Task<ValueResult<ShortenedUrl>> Create(string input, CancellationToken cancellationToken = default)
     {
-        if (input is null)
+        if (!Uri.TryCreate(input, in _uriOpts, out Uri? uri))
         {
-            // 500 on this one: the world is fundamentally broken
-            _logger.LogError("Received null '{param}'", nameof(input));
-            return Task.FromResult<ValueResult<ShortenedUrlOuput>>(new ErrorResult
+            return Task.FromResult<ValueResult<ShortenedUrl>>(new ErrorResult
             {
-                Message = $"{nameof(input)} cannot be null",
-            });
-        }
-        if (!Uri.TryCreate(input.Url, in _uriOpts, out Uri? uri))
-        {
-            return Task.FromResult<ValueResult<ShortenedUrlOuput>>(new ErrorResult
-            {
-                Message = $"Invalid URL '{input.Url}'",
+                Message = $"Invalid URL '{input}'",
                 Category = Constants.Errors.ClientError
             });
         }
         if (!uri.Scheme.StartsWith("http", StringComparison.InvariantCulture))
         {
-            return Task.FromResult<ValueResult<ShortenedUrlOuput>>(new ErrorResult
+            return Task.FromResult<ValueResult<ShortenedUrl>>(new ErrorResult
             {
-                Message = $"Submitted URL must use http(s) scheme. Found: '{input.Url}'",
+                Message = $"Submitted URL must use http(s) scheme. Found: '{input}'",
                 Category = Constants.Errors.ClientError,
             });
         }
-        return CreateCore(input.Url, uri, cancellationToken);
+        return CreateCore(input, uri, cancellationToken);
     }
 
-    private async Task<ValueResult<ShortenedUrlOuput>> CreateCore(string fullUrl, Uri uri, CancellationToken cancellationToken)
+    private async Task<ValueResult<ShortenedUrl>> CreateCore(string fullUrl, Uri uri, CancellationToken cancellationToken)
     {
         try
         {
@@ -67,7 +52,7 @@ public sealed class UrlService(
                     fullUrl,
                     aliasResult.Error.Message,
                     aliasResult.Error.CalledFrom);
-                return ValueResult<ShortenedUrlOuput>.FromError(aliasResult);
+                return ValueResult<ShortenedUrl>.FromError(aliasResult);
             }
 
             ShortenedUrl[] existing = await _repository.GetByAlias(@alias, cancellationToken);
@@ -85,7 +70,7 @@ public sealed class UrlService(
             if (existing.FirstOrDefault(e => e.FullUrl.Equals(fullUrl, StringComparison.Ordinal)) is ShortenedUrl duplicate)
             {
                 _logger.LogDebug("Encountered an existing entry for url: '{fullUrl}' (row id = {rid}).", fullUrl, duplicate.RowId);
-                return new Ok<ShortenedUrlOuput>(_mapper.Map<ShortenedUrlOuput>(duplicate));
+                return new Ok<ShortenedUrl>(duplicate);
             }
 
             ShortenedUrl newRow = new()
@@ -99,7 +84,7 @@ public sealed class UrlService(
             newRow.UrlSafeAlias = urlSafeAlias;
 
             newRow = await _repository.Insert(newRow, cancellationToken);
-            return new Ok<ShortenedUrlOuput>(_mapper.Map<ShortenedUrlOuput>(newRow));
+            return new Ok<ShortenedUrl>(newRow);
         }
         catch (Exception ex)
         {
@@ -114,10 +99,9 @@ public sealed class UrlService(
     }
 
     /// <inheritdoc />
-    public IQueryable<ShortenedUrlOuput> Query(ODataQueryOptions queryOptions)
+    public IQueryable<ShortenedUrl> Query()
     {
-        ArgumentNullException.ThrowIfNull(queryOptions);
-        return _repository.Query().ProjectTo<ShortenedUrlOuput>(_mappingConfig);
+        return _repository.Query().AsNoTracking();
     }
 
     /// <inheritdoc />

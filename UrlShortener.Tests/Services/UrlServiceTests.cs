@@ -1,6 +1,5 @@
 using AutoMapper;
 using UrlShortener.Backend;
-using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Data.Repositories;
 using UrlShortener.Backend.Services;
@@ -16,13 +15,13 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
 {
     #region Inputs and Results
     [ResetMe]
-    private UrlInput? _urlInput;
+    private string? _urlInput;
 
     [ResetMe]
     private string? _aliasLookup;
 
     [ResetMe]
-    private ValueResult<ShortenedUrlOuput>? _outputResult;
+    private ValueResult<ShortenedUrl>? _outputResult;
 
     [ResetMe]
     private ValueResult<string>? _lookupResult;
@@ -35,11 +34,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     #region Overrides
     protected override UrlService InitializeTestObject()
     {
-        return new UrlService(
-            Repo.Object,
-            GetRegistered<IMapper>(),
-            GetRegistered<IConfigurationProvider>(),
-            Logger.Object);
+        return new UrlService(Repo.Object, Logger.Object);
     }
 
     protected override void RegisterServices()
@@ -47,12 +42,11 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         base.RegisterServices();
 
         AddMockOf<IShortenedUrlRepository>();
-        Services.AddAutoMapper(static opts => opts.AddMaps([typeof(ShortenedUrlProfile)]));
     }
     #endregion
 
     #region Given
-    private void GivenUrlInput(UrlInput input) => _urlInput = input;
+    private void GivenUrlInput(string input) => _urlInput = input;
 
     private void GivenAlias(string @alias) => _aliasLookup = @alias;
 
