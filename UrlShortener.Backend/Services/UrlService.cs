@@ -57,7 +57,7 @@ public sealed class UrlService(
 
             ShortenedUrl[] existing = await _repository.GetByAlias(@alias, cancellationToken);
 
-            // alias is 16 chars, and then the 17th handles up to 10 collisions (we're talking heat-death-of-the-universe type of collision-checking here)
+            // alias is 16 chars, and then the 17th handles up to 10 collisions (seems like a safe amount of collision-checking here)
             if (existing.Length >= 10)
             {
                 _logger.LogCritical("Reached 10 collisions for alias '{alias}'. A new alias creation strategy is likely necessary.", @alias);

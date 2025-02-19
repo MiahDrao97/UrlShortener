@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using UrlShortener.Backend;
 using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Services;
@@ -15,11 +16,63 @@ public sealed class UrlController(
     private readonly IUrlService _urlService = urlService;
     private readonly ILogger<UrlController> _logger = logger;
 
+    private const int _pageSize = 10;
+
     [HttpGet]
-    [Route("all")]
-    public IActionResult All()
+    public async Task<IActionResult> Index(string? searchFilter, string? sortColumn, int? page)
     {
-        return View(new AllUrlsModel(_urlService));
+        try
+        {
+            IQueryable<ShortenedUrl> query = _urlService.Query();
+            if (!string.IsNullOrWhiteSpace(searchFilter))
+            {
+                query = query.Where(x => x.FullUrl.Contains(searchFilter, StringComparison.OrdinalIgnoreCase));
+            }
+            // start the count query
+            Task<int> countTask = query.CountAsync();
+
+            // ordering
+            query = sortColumn switch
+            {
+                "url_asc" => query.OrderBy(s => s.FullUrl),
+                "url_desc" => query.OrderByDescending(s => s.FullUrl),
+                "alias_asc" => query.OrderBy(s => s.UrlSafeAlias),
+                "alias_desc" => query.OrderByDescending(s => s.UrlSafeAlias),
+                "date_asc" => query.OrderBy(s => s.Created),
+                "date_desc" => query.OrderByDescending(s => s.Created),
+                _ => query,
+            };
+
+            // paging
+            query = query.Skip(_pageSize * (page ?? 0)).Take(_pageSize);
+
+            IEnumerable<ShortenedUrlModel> urls = (await query.ToListAsync()) // execute query before projecting to our model type
+                .Select(x => new ShortenedUrlModel
+                {
+                    FullUrl = x.FullUrl,
+                    Alias = x.UrlSafeAlias,
+                    Created = x.Created.ToLocalTime(),
+                    HostName = HttpContext.Request.Host.ToString()
+                });
+
+            return View(new UrlPaginatedListModel
+            {
+                ShortenedUrls = [.. urls],
+                SortColumn = sortColumn,
+                SearchFilter = searchFilter,
+                TotalCount = await countTask,
+                PageSize = _pageSize,
+                PageIndex = page ?? 0,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch URLs");
+            return View("Error", new ErrorViewModel
+            {
+                Message = "The server has experienced an oopsie. Please contact Joardy McJoardyson at (248) 434-5508 if the issue persists."
+            });
+        }
     }
 
     [HttpPost]
