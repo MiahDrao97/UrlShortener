@@ -1,5 +1,6 @@
-using AutoMapper;
+using System.Threading.Channels;
 using UrlShortener.Backend;
+using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Entities;
 using UrlShortener.Backend.Data.Repositories;
 using UrlShortener.Backend.Services;
@@ -29,12 +30,17 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
 
     #region Mocks
     private Mock<IShortenedUrlRepository> Repo => GetMockOf<IShortenedUrlRepository>();
+    private Mock<Channel<UrlTelemetry>> Channel => GetMockOf<Channel<UrlTelemetry>>();
     #endregion
 
     #region Overrides
     protected override UrlService InitializeTestObject()
     {
-        return new UrlService(Repo.Object, Logger.Object);
+        return new UrlService(
+            Repo.Object,
+            Channel.Object,
+            Logger.Object
+        );
     }
 
     protected override void RegisterServices()
@@ -42,6 +48,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         base.RegisterServices();
 
         AddMockOf<IShortenedUrlRepository>();
+        AddMockOf<Channel<UrlTelemetry>>();
     }
     #endregion
 

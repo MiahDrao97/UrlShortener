@@ -58,7 +58,7 @@ public sealed class UrlController(
                     Created = x.Created.ToLocalTime(),
                     Hits = x.Hits,
                     LastHit = x.LastHit?.ToLocalTime(),
-                    HostName = HttpContext.Request.Host.ToString()
+                    HostName = HttpContext?.Request?.Host.ToString()
                 });
 
             return View(new UrlPaginatedListModel
@@ -103,7 +103,7 @@ public sealed class UrlController(
                 Created = ok.Value.Created.ToLocalTime(),
                 Hits = ok.Value.Hits,
                 LastHit = ok.Value.LastHit?.ToLocalTime(),
-                HostName = HttpContext.Request.Host.ToString()
+                HostName = HttpContext?.Request?.Host.ToString()
             }),
             err =>
             {
