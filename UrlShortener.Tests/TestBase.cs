@@ -1,4 +1,4 @@
-/* The following test harness is sometihng I developed for a personal project that I adapted for work */
+/* The following test harness is something I developed for a personal project that I adapted for work */
 
 global using System;
 global using Microsoft.Extensions.DependencyInjection;

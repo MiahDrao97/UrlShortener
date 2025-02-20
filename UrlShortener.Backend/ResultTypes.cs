@@ -40,7 +40,7 @@ public class ErrorResult
         Message = other.Message;
         Exception = other.Exception;
         Category = other.Category;
-        CalledFrom = $"{other.CalledFrom}\n\tcalled from --> {filePath}:{memberName}, {lineNumber}";
+        CalledFrom = $"{other.CalledFrom}\n\tcalled from --> {filePath}<{memberName}>:{lineNumber}";
     }
 
     /// <summary>
