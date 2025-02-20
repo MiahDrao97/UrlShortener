@@ -30,12 +30,12 @@ Related to scaling, I didn't want to block the client for one last database call
 If we had a few hundred concurrent users, thread exhaustion is definitely possible.
 So instead, the analytics are emitted to a channel with a background service constantly listening to said channel and applying analytics as they come in.
 
-On code level, you may observe that I prefer returning errors as values.
+On a code level, you may observe that I prefer returning errors as values.
 This may not be "ergonomic" from a developer point of view (meaning you have to write more code and holy-nested-generics-batman), but I believe writing less code in the name of "developer experience" is largely a farce.
 Errors as values forces you to handle errors in the location they're returned (locality of behavior).
 In error-prone systems (like HTTP endpoints), returning a result over branching by exception results in better performance since validation is a regular control flow.
 
-The unit/integration-testing harness is one that I developed for own personal projects.
+The unit/integration-testing harness is one that I developed for my own personal projects.
 Using an in-memory database and live service scope will test the server in its entirety rather than against mocks.
 I do believe unit-testing is especially helpful for those edge-case bug crevices, but it doesn't test the larger system at work.
 
@@ -56,7 +56,7 @@ Specifically around the result types - 40 min
 30 min
 ### Beginning frontend work
 30 min
-### Getting the hasing algo super sorted out before enter the maze of razor pages
+### Getting the hashing algo super sorted out before enter the maze of razor pages
 Dev-testing via Postman to ensure correctness - 1 hour
 ### Creating unit tests
 First few unit tests - 30 min
