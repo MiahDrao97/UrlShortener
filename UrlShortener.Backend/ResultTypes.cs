@@ -46,12 +46,12 @@ public class ErrorResult
     /// <summary>
     /// Message to show the client
     /// </summary>
-    public string? Message { get; init; }
+    public string? Message { get; set; }
 
     /// <summary>
     /// Exception, if relevant
     /// </summary>
-    public Exception? Exception { get; init; }
+    public Exception? Exception { get; set; }
 
     /// <summary>
     /// Called from this location
@@ -61,5 +61,5 @@ public class ErrorResult
     /// <summary>
     /// Error category, if relevant
     /// </summary>
-    public string? Category { get; init; }
+    public string? Category { get; set; }
 }

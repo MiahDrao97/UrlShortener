@@ -11,7 +11,7 @@ public interface IShortenedUrlRepository
     /// Get all <see cref="ShortenedUrl"/> that match the given <paramref name="urlAlias"/>
     /// </summary>
     /// <param name="urlAlias">Shortened url alias</param>
-    public Task<ShortenedUrl[]> GetByAlias(string urlAlias, CancellationToken cancellationToken = default);
+    public Task<ValueResult<ShortenedUrl[]>> GetByAlias(string urlAlias, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Query the <see cref="ShortenedUrl"/> table
@@ -21,10 +21,10 @@ public interface IShortenedUrlRepository
     /// <summary>
     /// Insert a new <see cref="ShortenedUrl"/> row
     /// </summary>
-    public Task<ShortenedUrl> Insert(ShortenedUrl row, CancellationToken cancellationToken = default);
+    public Task<ValueResult<ShortenedUrl>> Insert(ShortenedUrl row, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Update a <see cref="ShortenedUrl"/>
     /// </summary>
-    public Task Update(ShortenedUrl row, CancellationToken cancellationToken = default);
+    public Task<Result> Update(ShortenedUrl row, CancellationToken cancellationToken = default);
 }

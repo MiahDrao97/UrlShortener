@@ -19,6 +19,7 @@ public class Startup
         services.AddLogging();
 
         services.AddScoped<IUrlService, UrlService>();
+        services.AddScoped<IUrlTransformer, UrlTransformer>();
         services.AddScoped<IShortenedUrlRepository, ShortenedUrlRepository>();
         services.AddSingleton(Channel.CreateBounded<UrlTelemetry>(new BoundedChannelOptions(1000) { FullMode = BoundedChannelFullMode.Wait }));
 

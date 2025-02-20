@@ -21,6 +21,9 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     [ResetMe]
     private string? _aliasLookup;
 
+    [ClearValues]
+    private readonly List<ShortenedUrl> _storedUrls = [];
+
     [ResetMe]
     private ValueResult<ShortenedUrl>? _outputResult;
 
@@ -29,6 +32,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     #endregion
 
     #region Mocks
+    private Mock<IUrlTransformer> Transformer => GetMockOf<IUrlTransformer>();
     private Mock<IShortenedUrlRepository> Repo => GetMockOf<IShortenedUrlRepository>();
     private Mock<Channel<UrlTelemetry>> Channel => GetMockOf<Channel<UrlTelemetry>>();
     #endregion
@@ -36,7 +40,16 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     #region Overrides
     protected override UrlService InitializeTestObject()
     {
+        if (IntegrationMode)
+        {
+            return new UrlService(
+                GetRegistered<IUrlTransformer>(),
+                GetRegistered<IShortenedUrlRepository>(),
+                GetRegistered<Channel<UrlTelemetry>>(),
+                Logger.Object);
+        }
         return new UrlService(
+            Transformer.Object,
             Repo.Object,
             Channel.Object,
             Logger.Object
@@ -47,8 +60,41 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     {
         base.RegisterServices();
 
+        AddMockOf<IUrlTransformer>();
         AddMockOf<IShortenedUrlRepository>();
         AddMockOf<Channel<UrlTelemetry>>();
+
+        Startup startup = new();
+        startup.ConfigureServices(Services);
+        startup.ConfigureDatabase(Services);
+    }
+
+    protected override void InitialSetups()
+    {
+        base.InitialSetups();
+
+        Transformer.Setup(static t => t.CreateAlias(It.IsAny<string>())).Returns(new Ok<string>("blarf"));
+        Transformer.Setup(static t => t.FromUrlSafeAlias(It.IsAny<string>())).Returns(new Ok<(string, short)>(("blarf", 0)));
+
+        Repo.Setup(static r => r.GetByAlias(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync<string, CancellationToken, IShortenedUrlRepository, ValueResult<ShortenedUrl[]>>((@alias, _) =>
+            {
+                return new Ok<ShortenedUrl[]>([.. _storedUrls.Where(s => s.Alias == @alias)]);
+            });
+        Repo.Setup(static r => r.Insert(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
+            .Callback<ShortenedUrl, CancellationToken>((url, _) => _storedUrls.Add(url))
+            .ReturnsAsync<ShortenedUrl, CancellationToken, IShortenedUrlRepository, ValueResult<ShortenedUrl>>(static (url, _) => new Ok<ShortenedUrl>(url));
+        Repo.Setup(static r => r.Update(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
+            .Callback<ShortenedUrl, CancellationToken>((url, _) =>
+            {
+                if (_storedUrls.FirstOrDefault(s => s.Alias == url.Alias && s.Offset == url.Offset) is ShortenedUrl found)
+                {
+                    _storedUrls.Remove(found);
+                    _storedUrls.Add(url);
+                }
+            })
+            .ReturnsAsync(new Ok());
+        Repo.Setup(static r => r.Query()).Returns(_storedUrls.AsQueryable());
     }
     #endregion
 
@@ -57,19 +103,30 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
 
     private void GivenAlias(string @alias) => _aliasLookup = @alias;
 
-    private void GivenRepositoryThrows(string method, Exception ex)
+    private void GivenRepositoryError(string method, string? message = null, Exception? ex = null)
     {
         switch (method)
         {
             case nameof(IShortenedUrlRepository.GetByAlias):
-                Repo.Setup(static r => r.GetByAlias(It.IsAny<string>(), It.IsAny<CancellationToken>())).ThrowsAsync(ex);
+                Repo.Setup(static r => r.GetByAlias(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new ErrorResult { Message = message, Exception = ex });
                 break;
             case nameof(IShortenedUrlRepository.Insert):
-                Repo.Setup(static r => r.Insert(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>())).ThrowsAsync(ex);
+                Repo.Setup(static r => r.Insert(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new ErrorResult { Message = message, Exception = ex });
+                break;
+            case nameof(IShortenedUrlRepository.Update):
+                Repo.Setup(static r => r.Update(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new ErrorResult { Message = message, Exception = ex });
                 break;
             default:
                 throw new NotSupportedException($"No method on {typeof(IShortenedUrlRepository)} called '{method}'");
         }
+    }
+
+    private void GivenStoredUrls(IEnumerable<ShortenedUrl> urls)
+    {
+        _storedUrls.AddRange(urls);
     }
     #endregion
 
@@ -119,8 +176,8 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         }
         catch (AssertionException)
         {
-            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_outputResult?.Value.GetType()}'");
-            if (_outputResult?.Value is ErrorResult err)
+            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_lookupResult?.Value.GetType()}'");
+            if (_lookupResult?.Value is ErrorResult err)
             {
                 Console.WriteLine($"Error result: {err.Message} --> {err.CalledFrom}\nException: {err.Exception}");
             }

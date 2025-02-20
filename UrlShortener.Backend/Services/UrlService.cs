@@ -1,8 +1,4 @@
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Channels;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using UrlShortener.Backend.Data;
@@ -13,10 +9,12 @@ namespace UrlShortener.Backend.Services;
 
 /// <inheritdoc cref="IUrlService" />
 public sealed class UrlService(
+    IUrlTransformer transformer,
     IShortenedUrlRepository repository,
     Channel<UrlTelemetry> channel,
     ILogger<UrlService> logger) : IUrlService
 {
+    private readonly IUrlTransformer _transformer = transformer;
     private readonly IShortenedUrlRepository _repository = repository;
     private readonly Channel<UrlTelemetry> _channel = channel;
     private readonly ILogger<UrlService> _logger = logger;
@@ -49,7 +47,7 @@ public sealed class UrlService(
     {
         try
         {
-            ValueResult<string> aliasResult = CreateAlias($"{uri.DnsSafeHost}{uri.PathAndQuery}"); // leave out scheme
+            ValueResult<string> aliasResult = _transformer.CreateAlias($"{uri.DnsSafeHost}{uri.PathAndQuery}"); // leave out scheme
             if (!aliasResult.IsSuccess(out string? @alias))
             {
                 _logger.LogError(aliasResult.Error.Exception, "Encountered unexpected error while creating alias for '{input}': {reason} -> {calledFrom}",
@@ -59,7 +57,15 @@ public sealed class UrlService(
                 return ValueResult<ShortenedUrl>.FromError(aliasResult);
             }
 
-            ShortenedUrl[] existing = await _repository.GetByAlias(@alias, cancellationToken);
+            ValueResult<ShortenedUrl[]> queryResult = await _repository.GetByAlias(@alias, cancellationToken);
+            if (!queryResult.IsSuccess(out ShortenedUrl[]? existing))
+            {
+                _logger.LogError(queryResult.Error.Exception, "Encountered unexpected error while querying for alias '{alias}': {reason} -> {calledFrom}",
+                    @alias,
+                    queryResult.Error.Message,
+                    queryResult.Error.CalledFrom);
+                return ValueResult<ShortenedUrl>.FromError(queryResult);
+            }
 
             // alias is 16 chars, and then the 17th handles up to 10 collisions (seems like a safe amount of collision-checking here)
             if (existing.Length >= 10)
@@ -84,16 +90,14 @@ public sealed class UrlService(
                 Offset = (short)existing.Length,
                 Created = DateTime.UtcNow,
             };
-            string urlSafeAlias = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{@alias}{existing.Length}")).Base64ToUrlSafe();
-            newRow.UrlSafeAlias = urlSafeAlias;
+            newRow.UrlSafeAlias = _transformer.CreateUrlSafeAlias(@alias, newRow.Offset);
 
-            newRow = await _repository.Insert(newRow, cancellationToken);
-            return new Ok<ShortenedUrl>(newRow);
+            return await _repository.Insert(newRow, cancellationToken);
         }
         catch (Exception ex)
         {
             // should not be catching at this point
-            _logger.LogError(ex, "Uncaught exception while creating shortened url for '{fullUrl}'", fullUrl);
+            _logger.LogCritical(ex, "Uncaught exception while creating shortened url for '{fullUrl}'", fullUrl);
             return new ErrorResult
             {
                 Message = $"Uncaught exception while creating shortened url for '{fullUrl}'",
@@ -113,40 +117,48 @@ public sealed class UrlService(
     {
         if (string.IsNullOrWhiteSpace(@alias))
         {
-            return Task.FromResult<ValueResult<string>>(new ErrorResult { Message = $"Shortened url cannot be null or whitespace. Was: '{@alias ?? "<null>"}'" });
-        }
-        // should be base64
-        Span<byte> aliasBytes = stackalloc byte[17]; // 16 bytes for MD5 hash + 1 for offset
-        if (!Convert.TryFromBase64Chars(@alias.UrlSafeToStandardBase64(), aliasBytes, out int bytesWritten))
-        {
-            _logger.LogError("Alias '{alias}' is not base64-encoded. All aliases are returned as a base64-encoded string, so we can safely assume this alias does not exist in this system.", @alias);
+            // returning "NotFound" on null/whitespace input
             return Task.FromResult<ValueResult<string>>(new ErrorResult
             {
-                Message = $"No urls found with alias '{@alias}'",
-                Category = Constants.Errors.NotFound,
+                Message = $"Shortened url cannot be null or whitespace. Was: '{@alias ?? "<null>"}'",
+                Category = Constants.Errors.NotFound
             });
         }
-        string trueAlias = Encoding.ASCII.GetString(aliasBytes);
-        if (trueAlias.Length != 17)
+
+        ValueResult<(string, short)> decodeResult = _transformer.FromUrlSafeAlias(@alias);
+        if (!decodeResult.IsSuccess(out (string Alias, short Offset) decoded))
         {
-            _logger.LogError("Alias '{@alias}' (decoded '{decoded}') is not exactly 17 bytes (ASCII characters). All aliases are 17 characters long, so we're inferring the alias does not exist in this system.", @alias, trueAlias);
-            return Task.FromResult<ValueResult<string>>(new ErrorResult
-            {
-                Message = $"No urls found with alias '{@alias}'",
-                Category = Constants.Errors.NotFound,
-            });
+            _logger.LogError(decodeResult.Error.Exception, "Assuming this system did not create alias '{alias}' since it could not be decoded: {reason} --> {calledFrom}",
+                @alias,
+                decodeResult.Error.Message,
+                decodeResult.Error.CalledFrom);
+
+            // change to "NotFound" since our system could not have created this alias
+            decodeResult.Error.Category = Constants.Errors.NotFound;
+
+            return Task.FromResult(ValueResult<string>.FromError(decodeResult));
         }
-        return LookupCore(trueAlias, cancellationToken);
+
+        return LookupCore(@alias, decoded.Alias, decoded.Offset, cancellationToken);
     }
 
-    private async Task<ValueResult<string>> LookupCore(string @alias, CancellationToken cancellationToken)
+    private async Task<ValueResult<string>> LookupCore(string @alias, string trueAlias, short offset, CancellationToken cancellationToken)
     {
         try
         {
-            ShortenedUrl[] found = await _repository.GetByAlias(@alias[..16], cancellationToken);
+            ValueResult<ShortenedUrl[]> queryResult = await _repository.GetByAlias(trueAlias, cancellationToken);
+            if (!queryResult.IsSuccess(out ShortenedUrl[]? found))
+            {
+                _logger.LogError(queryResult.Error.Exception, "Encountered unexpected error while querying for alias '{alias}': {reason} -> {calledFrom}",
+                    @alias,
+                    queryResult.Error.Message,
+                    queryResult.Error.CalledFrom);
+                return ValueResult<string>.FromError(queryResult);
+            }
+
             if (found.Length == 0)
             {
-                // most likely not found scenario
+                // most likely scenario for not finding anything
                 _logger.LogDebug("No urls found with alias '{alias}'", @alias);
                 return new ErrorResult
                 {
@@ -158,16 +170,6 @@ public sealed class UrlService(
             if (found.Length > 1)
             {
                 _logger.LogDebug("Found {count} urls stored with the same alias '{alias}'", found.Length, @alias);
-                if (!int.TryParse([@alias[^1]], CultureInfo.InvariantCulture, out int offset))
-                {
-                    _logger.LogError("Final character {char} did not parse to a valid offset. Returning not found for alias '{alias}'", @alias[^1], @alias);
-                    return new ErrorResult
-                    {
-                        Message = $"No urls found with alias '{@alias}'",
-                        Category = Constants.Errors.NotFound,
-                    };
-                }
-
                 if (found.FirstOrDefault(x => x.Offset == offset) is ShortenedUrl success)
                 {
                     // notify background service to record telemetry
@@ -178,13 +180,6 @@ public sealed class UrlService(
                     }, cancellationToken);
                     return new Ok<string>(success.FullUrl);
                 }
-
-                _logger.LogError("Final character {char} did not match an existing offset. Returning not found for alias '{alias}'", @alias[^1], @alias);
-                return new ErrorResult
-                {
-                    Message = $"No urls found with alias '{@alias}'",
-                    Category = Constants.Errors.NotFound,
-                };
             }
 
             // notify background service to record telemetry
@@ -205,6 +200,7 @@ public sealed class UrlService(
         }
     }
 
+    /// <inheritdoc />
     public Task<Result> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default)
     {
         if (telemetry is null)
@@ -230,56 +226,16 @@ public sealed class UrlService(
 
             row.Hits += 1;
             row.LastHit = telemetry.DateHit;
-            await _repository.Update(row, cancellationToken);
-
-            return new Ok();
+            return await _repository.Update(row, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Encountered unexpected error while recording hit on url {rid}", telemetry.RowId);
+            _logger.LogCritical(ex, "Encountered unexpected error while recording hit on url {rid}", telemetry.RowId);
             return new ErrorResult
             {
                 Exception = ex,
                 Message = $"Encountered unexpected error while recording hit on url {telemetry.RowId}",
             };
         }
-    }
-
-    private ValueResult<string> CreateAlias(string input)
-    {
-        _logger.LogDebug("Creating hash for '{input}'", input);
-        Span<byte> bytes = stackalloc byte[16]; // hash results in 128 bits (16 bytes)
-        int written;
-        try
-        {
-            // choosing to disable this warning because we're not using this for cryptographic purposes
-#pragma warning disable CA5351
-            // this hash algorithm creates a 128-bit hash, regardless of the input: perfect for creating aliases of the same length
-            written = MD5.HashData(Encoding.UTF8.GetBytes(input), bytes);
-#pragma warning restore CA5351
-        }
-        catch (Exception ex)
-        {
-            // not entirely sure what would cause this...
-            _logger.LogError(ex, "Unexpected error while hashing '{input}' with MD5 algorithm", input);
-            return new ErrorResult
-            {
-                Exception = ex,
-                Message = $"Unexpected error while hashing '{input}' with MD5 algorithm.",
-            };
-        }
-
-        // or this...
-        if (written != 16)
-        {
-            _logger.LogError("Encountered unexpected behavior from MD5 algorithm while creating alias for input '{input}'", input);
-            return new ErrorResult
-            {
-                Message = $"Unexpected behavior: MD5 algorithm wrote {written} bytes instead of 16 for input '{input}'.",
-            };
-        }
-
-        return new Ok<string>(Encoding.ASCII.GetString(bytes));
-
     }
 }

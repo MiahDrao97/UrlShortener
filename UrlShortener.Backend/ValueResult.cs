@@ -36,6 +36,12 @@ public partial class ValueResult<T> : OneOfBase<Ok<T>, ErrorResult>
     }
 
 #pragma warning disable CA1000
+    /// <summary>
+    /// Transform an error value result of one type to another
+    /// </summary>
+    /// <remarks>
+    /// Adds to the pseudo-stack trace, so please keep the default parameters default so that stack info is not obscured
+    /// </remarks>
     public static ValueResult<T> FromError<TOther>(
         ValueResult<TOther> other,
         [CallerFilePath] string? filePath = null,

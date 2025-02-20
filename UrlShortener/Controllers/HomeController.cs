@@ -24,18 +24,6 @@ public class HomeController(
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier, Message = string.Empty });
     }
 
-    [Route("/UrlNotFound/{alias}")]
-    public IActionResult UrlNotFound(string @alias)
-    {
-        _logger.LogDebug("URL NOT FOUND: {alias}", @alias);
-        return View(new UrlNotFoundModel { Alias = @alias });
-    }
-
-    public IActionResult List()
-    {
-        return View();
-    }
-
     [HttpGet]
     [Route("/{alias}")]
     public async Task<IActionResult> Get([FromRoute] string @alias)
@@ -56,7 +44,7 @@ public class HomeController(
             Constants.Errors.NotFound => View("UrlNotFound", new UrlNotFoundModel
             {
                 Alias = @alias,
-                HostName = HttpContext.Request.Host.ToString()
+                HostName = HttpContext?.Request?.Host.ToString()
             }),
             // No category is our "catch-all" server error
             _ => View("Error", new ErrorViewModel

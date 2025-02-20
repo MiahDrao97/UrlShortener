@@ -14,25 +14,32 @@ public sealed class ShortenedUrlRepository(
     private readonly ILogger<ShortenedUrlRepository> _logger = logger;
 
     /// <inheritdoc />
-    public Task<ShortenedUrl[]> GetByAlias(string urlAlias, CancellationToken cancellationToken = default)
+    public Task<ValueResult<ShortenedUrl[]>> GetByAlias(string urlAlias, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(urlAlias);
+        if (string.IsNullOrWhiteSpace(urlAlias))
+        {
+            return Task.FromResult<ValueResult<ShortenedUrl[]>>(new ErrorResult { Message = $"{nameof(urlAlias)} cannot be null/white space. Found: '{urlAlias ?? "<null>"}'" });
+        }
         return GetByAliasCore(urlAlias, cancellationToken);
     }
 
-    private async Task<ShortenedUrl[]> GetByAliasCore(string alias, CancellationToken cancellationToken)
+    private async Task<ValueResult<ShortenedUrl[]>> GetByAliasCore(string alias, CancellationToken cancellationToken)
     {
         try
         {
-            return await _context
+            return new Ok<ShortenedUrl[]>(await _context
                 .ShortenedUrls
                 .Where(s => s.Alias == alias)
-                .ToArrayAsync(cancellationToken);
+                .ToArrayAsync(cancellationToken));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to fetch all shortened url's with alias '{alias}'", alias);
-            throw;
+            return new ErrorResult
+            {
+                Exception = ex,
+                Message = $"Failed to fetch all shortened url's with alias '{alias}'",
+            };
         }
     }
 
@@ -40,47 +47,74 @@ public sealed class ShortenedUrlRepository(
     public IQueryable<ShortenedUrl> Query() => _context.ShortenedUrls;
 
     /// <inheritdoc />
-    public Task<ShortenedUrl> Insert(ShortenedUrl row, CancellationToken cancellationToken = default)
+    public Task<ValueResult<ShortenedUrl>> Insert(ShortenedUrl row, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(row);
+        if (row is null)
+        {
+            return Task.FromResult<ValueResult<ShortenedUrl>>(new ErrorResult { Message = $"{row} cannot be null" });
+        }
         return InsertCore(row, cancellationToken);
     }
 
-    private async Task<ShortenedUrl> InsertCore(ShortenedUrl row, CancellationToken cancellationToken)
+    private async Task<ValueResult<ShortenedUrl>> InsertCore(ShortenedUrl row, CancellationToken cancellationToken)
     {
         try
         {
             EntityEntry<ShortenedUrl> added = await _context.ShortenedUrls.AddAsync(row, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
 
-            _logger.LogDebug("Successfully inserted row with alias '{alias}' from url '{url}'", row.Alias, row.FullUrl);
-            return added.Entity;
+            _logger.LogDebug("Successfully inserted row with alias '{alias}' (actual: {actualAlias}, offset: {offset}) from url '{url}'",
+                row.UrlSafeAlias,
+                row.Alias,
+                row.Offset,
+                row.FullUrl);
+            return new Ok<ShortenedUrl>(added.Entity);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to insert row with alias '{alias}' from url '{url}'", row.Alias, row.FullUrl);
-            throw;
+            _logger.LogError(ex, "Failed to insert row with alias '{alias}' (actual: {actualAlias}, offset: {offset}) from url '{url}'",
+                row.UrlSafeAlias,
+                row.Alias,
+                row.Offset,
+                row.FullUrl);
+            return new ErrorResult
+            {
+                Exception = ex,
+                Message = $"Failed to insert row with alias '{row.UrlSafeAlias}' (actual: {row.Alias}, offset: {row.Offset}) from url '{row.FullUrl}'",
+            };
         }
     }
 
     /// <inheritdoc />
-    public Task Update(ShortenedUrl row, CancellationToken cancellationToken = default)
+    public Task<Result> Update(ShortenedUrl row, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(row);
+        if (row is null)
+        {
+            return Task.FromResult<Result>(new ErrorResult { Message = $"{row} cannot be null" });
+        }
         return UpdateCore(row, cancellationToken);
     }
 
-    private async Task UpdateCore(ShortenedUrl row, CancellationToken cancellationToken)
+    private async Task<Result> UpdateCore(ShortenedUrl row, CancellationToken cancellationToken)
     {
         try
         {
             _context.Update(row);
             await _context.SaveChangesAsync(cancellationToken);
+            return new Ok();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update row with alias '{alias}' from url '{url}'", row.Alias, row.FullUrl);
-            throw;
+            _logger.LogError(ex, "Failed to update row with alias '{alias}' (actual: {actualAlias}, offset: {offset}) from url '{url}'",
+                row.UrlSafeAlias,
+                row.Alias,
+                row.Offset,
+                row.FullUrl);
+            return new ErrorResult
+            {
+                Exception = ex,
+                Message = $"Failed to update row with alias '{row.UrlSafeAlias}' (actual: {row.Alias}, offset: {row.Offset}) from url '{row.FullUrl}'",
+            };
         }
     }
 }
