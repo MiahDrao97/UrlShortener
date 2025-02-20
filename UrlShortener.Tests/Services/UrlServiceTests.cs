@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using MockQueryable;
 using UrlShortener.Backend;
 using UrlShortener.Backend.Data;
 using UrlShortener.Backend.Data.Entities;
@@ -21,6 +22,9 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     [ResetMe]
     private string? _aliasLookup;
 
+    [ResetMe]
+    private UrlTelemetry? _urlTelemetry;
+
     [ClearValues]
     private readonly List<ShortenedUrl> _storedUrls = [];
 
@@ -29,12 +33,14 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
 
     [ResetMe]
     private ValueResult<string>? _lookupResult;
+
+    [ResetMe]
+    private Result? _recordHitResult;
     #endregion
 
     #region Mocks
     private Mock<IUrlTransformer> Transformer => GetMockOf<IUrlTransformer>();
     private Mock<IShortenedUrlRepository> Repo => GetMockOf<IShortenedUrlRepository>();
-    private Mock<Channel<UrlTelemetry>> Channel => GetMockOf<Channel<UrlTelemetry>>();
     #endregion
 
     #region Overrides
@@ -51,7 +57,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         return new UrlService(
             Transformer.Object,
             Repo.Object,
-            Channel.Object,
+            GetRegistered<Channel<UrlTelemetry>>(),
             Logger.Object
         );
     }
@@ -63,6 +69,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         AddMockOf<IUrlTransformer>();
         AddMockOf<IShortenedUrlRepository>();
         AddMockOf<Channel<UrlTelemetry>>();
+        AddMockOf<ChannelWriter<UrlTelemetry>>();
 
         Startup startup = new();
         startup.ConfigureServices(Services);
@@ -94,7 +101,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
                 }
             })
             .ReturnsAsync(new Ok());
-        Repo.Setup(static r => r.Query()).Returns(_storedUrls.AsQueryable());
+        Repo.Setup(static r => r.Query()).Returns(_storedUrls.BuildMock());
     }
     #endregion
 
@@ -128,6 +135,13 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     {
         _storedUrls.AddRange(urls);
     }
+
+    private void GivenDecodedAlias(string decoded, short offset)
+    {
+        Transformer.Setup(static t => t.FromUrlSafeAlias(It.IsAny<string>())).Returns(new Ok<(string, short)>((decoded, offset)));
+    }
+
+    private void GivenUrlTelemetry(UrlTelemetry telem) => _urlTelemetry = telem;
     #endregion
 
     #region When
@@ -139,6 +153,11 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     private async Task WhenLookingUp()
     {
         _lookupResult = await ToTest.Lookup(_aliasLookup!, default);
+    }
+
+    private async Task WhenRecordingHit()
+    {
+        _recordHitResult = await ToTest.RecordHit(_urlTelemetry!);
     }
     #endregion
 
@@ -178,6 +197,27 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         {
             Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_lookupResult?.Value.GetType()}'");
             if (_lookupResult?.Value is ErrorResult err)
+            {
+                Console.WriteLine($"Error result: {err.Message} --> {err.CalledFrom}\nException: {err.Exception}");
+            }
+            throw;
+        }
+    }
+
+    private void ThenRecordHitResultIs<T>(Func<T, bool>? assert = null)
+    {
+        assert ??= static (_) => true;
+
+        try
+        {
+            Assert.That(_recordHitResult, Is.Not.Null);
+            Assert.That(_recordHitResult!.Value, Is.TypeOf<T>());
+            Assert.That(assert((T)_recordHitResult.Value), Is.True);
+        }
+        catch (AssertionException)
+        {
+            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_recordHitResult?.Value.GetType()}'");
+            if (_recordHitResult?.Value is ErrorResult err)
             {
                 Console.WriteLine($"Error result: {err.Message} --> {err.CalledFrom}\nException: {err.Exception}");
             }

@@ -167,28 +167,26 @@ public sealed class UrlService(
                 };
             }
 
-            if (found.Length > 1)
+            _logger.LogDebug("Found {count} urls stored with the same alias '{alias}'", found.Length, @alias);
+            if (found.FirstOrDefault(x => x.Offset == offset) is ShortenedUrl success)
             {
-                _logger.LogDebug("Found {count} urls stored with the same alias '{alias}'", found.Length, @alias);
-                if (found.FirstOrDefault(x => x.Offset == offset) is ShortenedUrl success)
+                // notify background service to record telemetry
+                await _channel.Writer.WriteAsync(new UrlTelemetry
                 {
-                    // notify background service to record telemetry
-                    await _channel.Writer.WriteAsync(new UrlTelemetry
-                    {
-                        DateHit = DateTime.UtcNow,
-                        RowId = success.RowId
-                    }, cancellationToken);
-                    return new Ok<string>(success.FullUrl);
-                }
+                    DateHit = DateTime.UtcNow,
+                    RowId = success.RowId
+                }, cancellationToken);
+                return new Ok<string>(success.FullUrl);
             }
-
-            // notify background service to record telemetry
-            await _channel.Writer.WriteAsync(new UrlTelemetry
+            else
             {
-                DateHit = DateTime.UtcNow,
-                RowId = found[0].RowId
-            }, cancellationToken);
-            return new Ok<string>(found[0].FullUrl);
+                _logger.LogWarning("Found {count} urls stored with the same alias '{alias}', but none with offset {offset}", found.Length, @alias, offset);
+                return new ErrorResult
+                {
+                    Message = $"No urls found with alias '{@alias}'",
+                    Category = Constants.Errors.NotFound,
+                };
+            }
         }
         catch (Exception ex)
         {
