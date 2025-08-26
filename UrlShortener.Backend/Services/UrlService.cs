@@ -54,7 +54,7 @@ public sealed class UrlService(
                     fullUrl,
                     aliasResult.Err.Message,
                     aliasResult.Err.CalledFrom);
-                return Attempt<ShortenedUrl>.FromError(aliasResult);
+                return Attempt<ShortenedUrl>.FromErr(aliasResult);
             }
 
             Attempt<ShortenedUrl[]> queryResult = await _repository.GetByAlias(@alias, cancellationToken);
@@ -64,7 +64,7 @@ public sealed class UrlService(
                     @alias,
                     queryResult.Err.Message,
                     queryResult.Err.CalledFrom);
-                return Attempt<ShortenedUrl>.FromError(queryResult);
+                return Attempt<ShortenedUrl>.FromErr(queryResult);
             }
 
             // alias is 16 chars, and then the 17th handles up to 10 collisions (seems like a safe amount of collision-checking here)
@@ -140,7 +140,7 @@ public sealed class UrlService(
                 Code = Constants.Errors.NotFound,
             };
 
-            return Task.FromResult(Attempt<string>.FromError(notFound));
+            return Task.FromResult(Attempt<string>.FromErr(notFound));
         }
 
         return LookupCore(@alias, decoded.Alias, decoded.Offset, cancellationToken);
@@ -157,7 +157,7 @@ public sealed class UrlService(
                     @alias,
                     queryResult.Err.Message,
                     queryResult.Err.CalledFrom);
-                return Attempt<string>.FromError(queryResult);
+                return Attempt<string>.FromErr(queryResult);
             }
 
             if (found.Length == 0)

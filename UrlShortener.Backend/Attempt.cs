@@ -112,7 +112,7 @@ public sealed class Attempt<T>
 #pragma warning restore CS8775
     }
 
-    public static Attempt<T> FromError(
+    public static Attempt<T> FromErr(
         Attempt other,
         [CallerFilePath] string? filePath = null,
         [CallerMemberName] string? memberName = null,
@@ -123,7 +123,7 @@ public sealed class Attempt<T>
             err => new Err(err, filePath, memberName, lineNumber)); // captures stack trace
     }
 
-    public static Attempt<T> FromError<TOther>(
+    public static Attempt<T> FromErr<TOther>(
         Attempt<TOther> other,
         [CallerFilePath] string? filePath = null,
         [CallerMemberName] string? memberName = null,
