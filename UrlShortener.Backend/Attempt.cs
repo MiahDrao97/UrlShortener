@@ -86,17 +86,7 @@ public sealed class Attempt<T>
         return ifErr(Err);
     }
 
-    public Err? Err
-    {
-        get
-        {
-            if (_success)
-            {
-                return null;
-            }
-            return (Err)_result!;
-        }
-    }
+    public Err? Err => _success ? null : (Err)_result!;
 
     [MemberNotNullWhen(false, nameof(Err))]
     public bool IsSuccess([MaybeNullWhen(false)] out T result)

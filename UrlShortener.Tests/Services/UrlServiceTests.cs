@@ -170,14 +170,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         try
         {
             Assert.That(_outputResult, Is.Not.Null);
-            if (_outputResult!.IsSuccess(out ShortenedUrl? url))
-            {
-                result = url;
-            }
-            else
-            {
-                result = _outputResult.Err;
-            }
+            result = _outputResult!.Match<object>(static ok => ok, static err => err);
             Assert.That(result, Is.TypeOf<T>());
             Assert.That(assert((T)result), Is.True);
         }
@@ -200,14 +193,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         try
         {
             Assert.That(_lookupResult, Is.Not.Null);
-            if (_lookupResult!.IsSuccess(out string? lookup))
-            {
-                result = lookup;
-            }
-            else
-            {
-                result = _lookupResult.Err;
-            }
+            result = _lookupResult!.Match<object>(static ok => ok, static err => err);
             Assert.That(result, Is.TypeOf<T>());
             Assert.That(assert((T)result), Is.True);
         }
@@ -230,14 +216,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         try
         {
             Assert.That(_recordHitResult, Is.Not.Null);
-            if (_recordHitResult!.Success)
-            {
-                result = Attempt.Ok;
-            }
-            else
-            {
-                result = _recordHitResult.Err;
-            }
+            result = _recordHitResult!.Match<object>(static () => Attempt.Ok, static err => err);
             Assert.That(result, Is.TypeOf<T>());
             Assert.That(assert((T)result), Is.True);
         }
