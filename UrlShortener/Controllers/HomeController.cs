@@ -28,18 +28,18 @@ public class HomeController(
     [Route("/{alias}")]
     public async Task<IActionResult> Get([FromRoute] string @alias)
     {
-        ValueResult<string> result = await _urlService.Lookup(@alias);
+        Attempt<string> result = await _urlService.Lookup(@alias);
         if (result.IsSuccess(out string? redirectUrl))
         {
             return new RedirectResult(redirectUrl);
         }
 
-        _logger.LogError(result.Error.Exception, "{category} result from looking up stored url for alias '{alias}': {reason} --> {calledFrom}",
-            result.Error.Category ?? "Error",
+        _logger.LogError(result.Err.Exception, "{category} result from looking up stored url for alias '{alias}': {reason} --> {calledFrom}",
+            result.Err.Code,
             @alias,
-            result.Error.Message,
-            result.Error.CalledFrom);
-        return result.Error.Category switch
+            result.Err.Message,
+            result.Err.CalledFrom);
+        return result.Err.Code switch
         {
             Constants.Errors.NotFound => View("UrlNotFound", new UrlNotFoundModel
             {

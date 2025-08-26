@@ -13,11 +13,11 @@ public static class Constants
         /// <summary>
         /// Resource was not found
         /// </summary>
-        public const string NotFound = nameof(NotFound);
+        public const int NotFound = 1;
 
         /// <summary>
         /// Input from client failed validation
         /// </summary>
-        public const string ClientError = nameof(ClientError);
+        public const int ClientError = 2;
     }
 }

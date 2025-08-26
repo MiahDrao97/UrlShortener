@@ -14,7 +14,7 @@ public interface IUrlService
     /// <summary>
     /// Create a shortened url from client input
     /// </summary>
-    public Task<ValueResult<ShortenedUrl>> Create(string input, CancellationToken cancellationToken = default);
+    public Task<Attempt<ShortenedUrl>> Create(string input, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Query url's stored in the server
@@ -24,10 +24,10 @@ public interface IUrlService
     /// <summary>
     /// Lookup a url with a shortned alias
     /// </summary>
-    public Task<ValueResult<string>> Lookup(string @alias, CancellationToken cancellationToken = default);
+    public Task<Attempt<string>> Lookup(string @alias, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Record a hit on one of our shortened url's being hit
     /// </summary>
-    public Task<Result> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default);
+    public Task<Attempt> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default);
 }

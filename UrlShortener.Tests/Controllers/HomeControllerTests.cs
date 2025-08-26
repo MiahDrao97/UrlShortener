@@ -48,7 +48,7 @@ public sealed partial class HomeControllerTests : TestBase<HomeController>
 
     private void GivenAlias(string @alias) => _alias = @alias;
 
-    private void GivenUrlServiceReturns(ValueResult<string> result)
+    private void GivenUrlServiceReturns(Attempt<string> result)
     {
         UrlService.Setup(u => u.Lookup(_alias!, It.IsAny<CancellationToken>())).ReturnsAsync(result);
     }
@@ -69,10 +69,10 @@ public sealed partial class HomeControllerTests : TestBase<HomeController>
     [TestOf(nameof(HomeController.Get))]
     [Category(UnitTest)]
     public void Get_ReturnsErrorView_WhenUrlServiceReturnsError(
-        [Values(Constants.Errors.NotFound, Constants.Errors.ClientError, null)] string? errorCategory)
+        [Values(Constants.Errors.NotFound, Constants.Errors.ClientError, default)] int errorCategory)
     {
         GivenAlias("asdf");
-        GivenUrlServiceReturns(new ErrorResult { Message = "It failed!", Category = errorCategory });
+        GivenUrlServiceReturns(new Err { Message = "It failed!", Code = errorCategory });
 
         ThenNoExceptions(WhenHittingAlias);
         ThenActionResultIs<ViewResult>(out ViewResult? view);
@@ -95,7 +95,7 @@ public sealed partial class HomeControllerTests : TestBase<HomeController>
     {
         string url = $"https://mysite.com/{Guid.NewGuid()}";
         GivenAlias("asdf");
-        GivenUrlServiceReturns(new Ok<string>(url));
+        GivenUrlServiceReturns(url);
 
         ThenNoExceptions(WhenHittingAlias);
         ThenActionResultIs<RedirectResult>(out RedirectResult? redirect);

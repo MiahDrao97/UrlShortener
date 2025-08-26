@@ -14,28 +14,28 @@ public sealed class ShortenedUrlRepository(
     private readonly ILogger<ShortenedUrlRepository> _logger = logger;
 
     /// <inheritdoc />
-    public Task<ValueResult<ShortenedUrl[]>> GetByAlias(string urlAlias, CancellationToken cancellationToken = default)
+    public Task<Attempt<ShortenedUrl[]>> GetByAlias(string urlAlias, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(urlAlias))
         {
-            return Task.FromResult<ValueResult<ShortenedUrl[]>>(new ErrorResult { Message = $"{nameof(urlAlias)} cannot be null/white space. Found: '{urlAlias ?? "<null>"}'" });
+            return Task.FromResult<Attempt<ShortenedUrl[]>>(new Err { Message = $"{nameof(urlAlias)} cannot be null/white space. Found: '{urlAlias ?? "<null>"}'" });
         }
         return GetByAliasCore(urlAlias, cancellationToken);
     }
 
-    private async Task<ValueResult<ShortenedUrl[]>> GetByAliasCore(string alias, CancellationToken cancellationToken)
+    private async Task<Attempt<ShortenedUrl[]>> GetByAliasCore(string alias, CancellationToken cancellationToken)
     {
         try
         {
-            return new Ok<ShortenedUrl[]>(await _context
+            return await _context
                 .ShortenedUrls
                 .Where(s => s.Alias == alias)
-                .ToArrayAsync(cancellationToken));
+                .ToArrayAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to fetch all shortened url's with alias '{alias}'", alias);
-            return new ErrorResult
+            return new Err
             {
                 Exception = ex,
                 Message = $"Failed to fetch all shortened url's with alias '{alias}'",
@@ -47,16 +47,16 @@ public sealed class ShortenedUrlRepository(
     public IQueryable<ShortenedUrl> Query() => _context.ShortenedUrls;
 
     /// <inheritdoc />
-    public Task<ValueResult<ShortenedUrl>> Insert(ShortenedUrl row, CancellationToken cancellationToken = default)
+    public Task<Attempt<ShortenedUrl>> Insert(ShortenedUrl row, CancellationToken cancellationToken = default)
     {
         if (row is null)
         {
-            return Task.FromResult<ValueResult<ShortenedUrl>>(new ErrorResult { Message = $"{row} cannot be null" });
+            return Task.FromResult<Attempt<ShortenedUrl>>(new Err { Message = $"{row} cannot be null" });
         }
         return InsertCore(row, cancellationToken);
     }
 
-    private async Task<ValueResult<ShortenedUrl>> InsertCore(ShortenedUrl row, CancellationToken cancellationToken)
+    private async Task<Attempt<ShortenedUrl>> InsertCore(ShortenedUrl row, CancellationToken cancellationToken)
     {
         try
         {
@@ -68,7 +68,7 @@ public sealed class ShortenedUrlRepository(
                 row.Alias,
                 row.Offset,
                 row.FullUrl);
-            return new Ok<ShortenedUrl>(added.Entity);
+            return added.Entity;
         }
         catch (Exception ex)
         {
@@ -77,7 +77,7 @@ public sealed class ShortenedUrlRepository(
                 row.Alias,
                 row.Offset,
                 row.FullUrl);
-            return new ErrorResult
+            return new Err
             {
                 Exception = ex,
                 Message = $"Failed to insert row with alias '{row.UrlSafeAlias}' (actual: {row.Alias}, offset: {row.Offset}) from url '{row.FullUrl}'",
@@ -86,22 +86,22 @@ public sealed class ShortenedUrlRepository(
     }
 
     /// <inheritdoc />
-    public Task<Result> Update(ShortenedUrl row, CancellationToken cancellationToken = default)
+    public Task<Attempt> Update(ShortenedUrl row, CancellationToken cancellationToken = default)
     {
         if (row is null)
         {
-            return Task.FromResult<Result>(new ErrorResult { Message = $"{row} cannot be null" });
+            return Task.FromResult<Attempt>(new Err { Message = $"{row} cannot be null" });
         }
         return UpdateCore(row, cancellationToken);
     }
 
-    private async Task<Result> UpdateCore(ShortenedUrl row, CancellationToken cancellationToken)
+    private async Task<Attempt> UpdateCore(ShortenedUrl row, CancellationToken cancellationToken)
     {
         try
         {
             _context.Update(row);
             await _context.SaveChangesAsync(cancellationToken);
-            return new Ok();
+            return Attempt.Ok;
         }
         catch (Exception ex)
         {
@@ -110,7 +110,7 @@ public sealed class ShortenedUrlRepository(
                 row.Alias,
                 row.Offset,
                 row.FullUrl);
-            return new ErrorResult
+            return new Err
             {
                 Exception = ex,
                 Message = $"Failed to update row with alias '{row.UrlSafeAlias}' (actual: {row.Alias}, offset: {row.Offset}) from url '{row.FullUrl}'",

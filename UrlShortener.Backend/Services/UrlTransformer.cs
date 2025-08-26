@@ -10,13 +10,13 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
     private readonly ILogger<UrlTransformer> _logger = logger;
 
     /// <inheritdoc />
-    public ValueResult<string> CreateAlias(string input)
+    public Attempt<string> CreateAlias(string input)
     {
         // server error
         if (string.IsNullOrWhiteSpace(input))
         {
             _logger.LogError("Received invalid value for parameter '{param}'", nameof(input));
-            return new ErrorResult
+            return new Err
             {
                 Message = $"{nameof(input)} cannot be null/whitespace. Was: '{input ?? "<null>"}'",
             };
@@ -36,7 +36,7 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error while hashing '{input}' with MD5 algorithm", input);
-            return new ErrorResult
+            return new Err
             {
                 Exception = ex,
                 Message = $"Unexpected error while hashing '{input}' with MD5 algorithm.",
@@ -47,13 +47,13 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         if (written != 16)
         {
             _logger.LogError("Encountered unexpected behavior from MD5 algorithm while creating alias for input '{input}'", input);
-            return new ErrorResult
+            return new Err
             {
                 Message = $"Unexpected behavior: MD5 algorithm wrote {written} bytes instead of 16 for input '{input}'.",
             };
         }
 
-        return new Ok<string>(Encoding.ASCII.GetString(bytes));
+        return Encoding.ASCII.GetString(bytes);
     }
 
     /// <inheritdoc />
@@ -63,11 +63,11 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
     }
 
     /// <inheritdoc />
-    public ValueResult<(string, short)> FromUrlSafeAlias(string input)
+    public Attempt<(string, short)> FromUrlSafeAlias(string input)
     {
         if (string.IsNullOrEmpty(input))
         {
-            return new ErrorResult
+            return new Err
             {
                 Message = $"{nameof(input)} cannot be null/empty.",
             };
@@ -78,7 +78,7 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         if (!Convert.TryFromBase64Chars(input.UrlSafeToStandardBase64(), aliasBytes, out int bytesWritten))
         {
             _logger.LogError("Alias '{alias}' is not base64-encoded.", input);
-            return new ErrorResult
+            return new Err
             {
                 Message = $"Alias '{input}' is not base64-encoded.",
             };
@@ -89,7 +89,7 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         {
             // unfortunately does not detect if larger than 17 bytes
             _logger.LogError("Alias '{@alias}' (decoded '{decoded}') is not at least 17 bytes (ASCII characters).", input, decoded);
-            return new ErrorResult
+            return new Err
             {
                 Message = $"Alias '{input}' (decoded '{decoded}') is not at least 17 bytes (ASCII characters).",
             };
@@ -98,12 +98,12 @@ public sealed class UrlTransformer(ILogger<UrlTransformer> logger) : IUrlTransfo
         if (!short.TryParse([decoded[^1]], out short offset))
         {
             _logger.LogError("Final character '{char}' did not parse to a valid offset for alias '{alias}' (decoded: {decoded})", decoded[^1], input, decoded);
-            return new ErrorResult
+            return new Err
             {
                 Message = $"Final character '{decoded[^1]}' did not parse to a valid offset for alias '{input}' (decoded: {decoded}).",
             };
         }
 
-        return new Ok<(string, short)>((decoded[..16], offset));
+        return (decoded[..16], offset);
     }
 }

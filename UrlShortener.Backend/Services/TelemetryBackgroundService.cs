@@ -27,13 +27,13 @@ public sealed class TelemetryBackgroundService(
         {
             if (_channel.Reader.TryRead(out UrlTelemetry? item))
             {
-                Result result = await GetUrlService().RecordHit(item, stoppingToken);
+                Attempt result = await GetUrlService().RecordHit(item, stoppingToken);
                 if (!result.Success)
                 {
-                    _logger.LogError(result.Error.Exception, "Encountered failure while recording hit for url {rid}: {reason} --> {calledFrom}",
+                    _logger.LogError(result.Err.Exception, "Encountered failure while recording hit for url {rid}: {reason} --> {calledFrom}",
                         item.RowId,
-                        result.Error.Message,
-                        result.Error.CalledFrom);
+                        result.Err.Message,
+                        result.Err.CalledFrom);
                 }
                 else if (_logger.IsEnabled(LogLevel.Debug))
                 {

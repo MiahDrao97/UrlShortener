@@ -29,13 +29,13 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     private readonly List<ShortenedUrl> _storedUrls = [];
 
     [ResetMe]
-    private ValueResult<ShortenedUrl>? _outputResult;
+    private Attempt<ShortenedUrl>? _outputResult;
 
     [ResetMe]
-    private ValueResult<string>? _lookupResult;
+    private Attempt<string>? _lookupResult;
 
     [ResetMe]
-    private Result? _recordHitResult;
+    private Attempt? _recordHitResult;
     #endregion
 
     #region Mocks
@@ -80,17 +80,17 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     {
         base.InitialSetups();
 
-        Transformer.Setup(static t => t.CreateAlias(It.IsAny<string>())).Returns(new Ok<string>("blarf"));
-        Transformer.Setup(static t => t.FromUrlSafeAlias(It.IsAny<string>())).Returns(new Ok<(string, short)>(("blarf", 0)));
+        Transformer.Setup(static t => t.CreateAlias(It.IsAny<string>())).Returns("blarf");
+        Transformer.Setup(static t => t.FromUrlSafeAlias(It.IsAny<string>())).Returns(("blarf", 0));
 
         Repo.Setup(static r => r.GetByAlias(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync<string, CancellationToken, IShortenedUrlRepository, ValueResult<ShortenedUrl[]>>((@alias, _) =>
+            .ReturnsAsync<string, CancellationToken, IShortenedUrlRepository, Attempt<ShortenedUrl[]>>((@alias, _) =>
             {
-                return new Ok<ShortenedUrl[]>([.. _storedUrls.Where(s => s.Alias == @alias)]);
+                return _storedUrls.Where(s => s.Alias == @alias).ToArray();
             });
         Repo.Setup(static r => r.Insert(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
             .Callback<ShortenedUrl, CancellationToken>((url, _) => _storedUrls.Add(url))
-            .ReturnsAsync<ShortenedUrl, CancellationToken, IShortenedUrlRepository, ValueResult<ShortenedUrl>>(static (url, _) => new Ok<ShortenedUrl>(url));
+            .ReturnsAsync<ShortenedUrl, CancellationToken, IShortenedUrlRepository, Attempt<ShortenedUrl>>(static (url, _) => url);
         Repo.Setup(static r => r.Update(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
             .Callback<ShortenedUrl, CancellationToken>((url, _) =>
             {
@@ -100,7 +100,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
                     _storedUrls.Add(url);
                 }
             })
-            .ReturnsAsync(new Ok());
+            .ReturnsAsync(Attempt.Ok);
         Repo.Setup(static r => r.Query()).Returns(_storedUrls.BuildMock());
     }
     #endregion
@@ -116,15 +116,15 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
         {
             case nameof(IShortenedUrlRepository.GetByAlias):
                 Repo.Setup(static r => r.GetByAlias(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(new ErrorResult { Message = message, Exception = ex });
+                    .ReturnsAsync(new Err { Message = message, Exception = ex });
                 break;
             case nameof(IShortenedUrlRepository.Insert):
                 Repo.Setup(static r => r.Insert(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(new ErrorResult { Message = message, Exception = ex });
+                    .ReturnsAsync(new Err { Message = message, Exception = ex });
                 break;
             case nameof(IShortenedUrlRepository.Update):
                 Repo.Setup(static r => r.Update(It.IsAny<ShortenedUrl>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(new ErrorResult { Message = message, Exception = ex });
+                    .ReturnsAsync(new Err { Message = message, Exception = ex });
                 break;
             default:
                 throw new NotSupportedException($"No method on {typeof(IShortenedUrlRepository)} called '{method}'");
@@ -138,7 +138,7 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
 
     private void GivenDecodedAlias(string decoded, short offset)
     {
-        Transformer.Setup(static t => t.FromUrlSafeAlias(It.IsAny<string>())).Returns(new Ok<(string, short)>((decoded, offset)));
+        Transformer.Setup(static t => t.FromUrlSafeAlias(It.IsAny<string>())).Returns((decoded, offset));
     }
 
     private void GivenUrlTelemetry(UrlTelemetry telem) => _urlTelemetry = telem;
@@ -166,16 +166,25 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     {
         assert ??= static (_) => true;
 
+        object? result = null;
         try
         {
             Assert.That(_outputResult, Is.Not.Null);
-            Assert.That(_outputResult!.Value, Is.TypeOf<T>());
-            Assert.That(assert((T)_outputResult.Value), Is.True);
+            if (_outputResult!.IsSuccess(out ShortenedUrl? url))
+            {
+                result = url;
+            }
+            else
+            {
+                result = _outputResult.Err;
+            }
+            Assert.That(result, Is.TypeOf<T>());
+            Assert.That(assert((T)result), Is.True);
         }
         catch (AssertionException)
         {
-            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_outputResult?.Value.GetType()}'");
-            if (_outputResult?.Value is ErrorResult err)
+            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{result?.GetType()}'");
+            if (result is Err err)
             {
                 Console.WriteLine($"Error result: {err.Message} --> {err.CalledFrom}\nException: {err.Exception}");
             }
@@ -187,16 +196,25 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     {
         assert ??= static (_) => true;
 
+        object? result = null;
         try
         {
             Assert.That(_lookupResult, Is.Not.Null);
-            Assert.That(_lookupResult!.Value, Is.TypeOf<T>());
-            Assert.That(assert((T)_lookupResult.Value), Is.True);
+            if (_lookupResult!.IsSuccess(out string? lookup))
+            {
+                result = lookup;
+            }
+            else
+            {
+                result = _lookupResult.Err;
+            }
+            Assert.That(result, Is.TypeOf<T>());
+            Assert.That(assert((T)result), Is.True);
         }
         catch (AssertionException)
         {
-            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_lookupResult?.Value.GetType()}'");
-            if (_lookupResult?.Value is ErrorResult err)
+            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{result?.GetType()}'");
+            if (result is Err err)
             {
                 Console.WriteLine($"Error result: {err.Message} --> {err.CalledFrom}\nException: {err.Exception}");
             }
@@ -208,16 +226,25 @@ public sealed partial class UrlServiceTests : TestBase<UrlService>
     {
         assert ??= static (_) => true;
 
+        object? result = null;
         try
         {
             Assert.That(_recordHitResult, Is.Not.Null);
-            Assert.That(_recordHitResult!.Value, Is.TypeOf<T>());
-            Assert.That(assert((T)_recordHitResult.Value), Is.True);
+            if (_recordHitResult!.Success)
+            {
+                result = Attempt.Ok;
+            }
+            else
+            {
+                result = _recordHitResult.Err;
+            }
+            Assert.That(result, Is.TypeOf<T>());
+            Assert.That(assert((T)result), Is.True);
         }
         catch (AssertionException)
         {
-            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{_recordHitResult?.Value.GetType()}'");
-            if (_recordHitResult?.Value is ErrorResult err)
+            Console.WriteLine($"Expected that result was type '{typeof(T)}' but found: '{result?.GetType()}'");
+            if (result is Err err)
             {
                 Console.WriteLine($"Error result: {err.Message} --> {err.CalledFrom}\nException: {err.Exception}");
             }

@@ -94,25 +94,25 @@ public sealed class UrlController(
 
         _logger.LogDebug("Creating alias for '{input}'", url.UrlInput);
         // let the service validate it
-        ValueResult<ShortenedUrl> result = await _urlService.Create(url.UrlInput!);
+        Attempt<ShortenedUrl> result = await _urlService.Create(url.UrlInput!);
         return result.Match<IActionResult>(
             ok => new RedirectToActionResult("Index", "Home", new ShortenedUrlModel
             {
-                FullUrl = ok.Value.FullUrl,
-                Alias = ok.Value.UrlSafeAlias,
-                Created = ok.Value.Created.ToLocalTime(),
-                Hits = ok.Value.Hits,
-                LastHit = ok.Value.LastHit?.ToLocalTime(),
+                FullUrl = ok.FullUrl,
+                Alias = ok.UrlSafeAlias,
+                Created = ok.Created.ToLocalTime(),
+                Hits = ok.Hits,
+                LastHit = ok.LastHit?.ToLocalTime(),
                 HostName = HttpContext?.Request?.Host.ToString()
             }),
             err =>
             {
                 _logger.LogError(err.Exception, "{category} result from alias for url '{url}': {reason} --> {calledFrom}",
-                    err.Category ?? "Error",
+                    err.Code,
                     url.UrlInput,
                     err.Message,
                     err.CalledFrom);
-                return err.Category switch
+                return err.Code switch
                 {
                     Constants.Errors.ClientError => View("Error", new ErrorViewModel
                     {

@@ -14,7 +14,7 @@ public sealed partial class UrlServiceTests
     {
         GivenUrlInput(url!);
         ThenNoExceptions(WhenCreating);
-        ThenOutputResultIs<ErrorResult>(err => err.Message?.Equals($"Invalid URL '{url}'", StringComparison.Ordinal) == true);
+        ThenOutputResultIs<Err>(err => err.Message?.Equals($"Invalid URL '{url}'", StringComparison.Ordinal) == true);
     }
 
     [Test]
@@ -24,7 +24,7 @@ public sealed partial class UrlServiceTests
     {
         GivenUrlInput(url);
         ThenNoExceptions(WhenCreating);
-        ThenOutputResultIs<ErrorResult>(err => err.Message?.Equals($"Submitted URL must use http(s) scheme. Found: '{url}'", StringComparison.Ordinal) == true);
+        ThenOutputResultIs<Err>(err => err.Message?.Equals($"Submitted URL must use http(s) scheme. Found: '{url}'", StringComparison.Ordinal) == true);
     }
 
     [Test]
@@ -40,7 +40,7 @@ public sealed partial class UrlServiceTests
             withException ? new TaskCanceledException() : null);
 
         ThenNoExceptions(WhenCreating);
-        ThenOutputResultIs<ErrorResult>(err =>
+        ThenOutputResultIs<Err>(err =>
             err.Message?.Contains("It failed!", StringComparison.Ordinal) == true
             && withException ? err.Exception?.GetType() == typeof(TaskCanceledException) : err.Exception is null);
     }
@@ -58,7 +58,7 @@ public sealed partial class UrlServiceTests
             withException ? new TaskCanceledException() : null);
 
         ThenNoExceptions(WhenCreating);
-        ThenOutputResultIs<ErrorResult>(err =>
+        ThenOutputResultIs<Err>(err =>
             err.Message?.Contains("It failed!", StringComparison.Ordinal) == true
             && withException ? err.Exception?.GetType() == typeof(TaskCanceledException) : err.Exception is null);
     }
@@ -79,7 +79,7 @@ public sealed partial class UrlServiceTests
         }));
 
         ThenNoExceptions(WhenCreating);
-        ThenOutputResultIs<ErrorResult>(static err => err.Message?.StartsWith("Reached 10 collisions for alias", StringComparison.Ordinal) == true);
+        ThenOutputResultIs<Err>(static err => err.Message?.StartsWith("Reached 10 collisions for alias", StringComparison.Ordinal) == true);
     }
 
     [Test]
@@ -93,7 +93,7 @@ public sealed partial class UrlServiceTests
         GivenUrlInput(url);
 
         ThenNoExceptions(WhenCreating);
-        ThenOutputResultIs<Ok<ShortenedUrl>>(static ok => ok.Value.UrlSafeAlias.Equals(expectedAlias, StringComparison.Ordinal));
+        ThenOutputResultIs<ShortenedUrl>(static ok => ok.UrlSafeAlias.Equals(expectedAlias, StringComparison.Ordinal));
     }
 
     [Test]
@@ -110,7 +110,7 @@ public sealed partial class UrlServiceTests
         ThenNoExceptions(WhenCreating);
         ThenNoExceptions(WhenCreating); // hit it again with same input
         // expecting same output as before
-        ThenOutputResultIs<Ok<ShortenedUrl>>(static ok => ok.Value.UrlSafeAlias.Equals(expectedAlias, StringComparison.Ordinal));
+        ThenOutputResultIs<ShortenedUrl>(static ok => ok.UrlSafeAlias.Equals(expectedAlias, StringComparison.Ordinal));
 
         // shouldn't have more than 1 url
         Assert.That(ToTest.Query().Where(u => u.FullUrl.Equals(url, StringComparison.Ordinal)).Count(), Is.EqualTo(1));

@@ -10,7 +10,7 @@ public interface IUrlTransformer
     /// <summary>
     /// Create an alias
     /// </summary>
-    public ValueResult<string> CreateAlias(string input);
+    public Attempt<string> CreateAlias(string input);
 
     /// <summary>
     /// Transform an alias to be url-safe, using both its original form and offset
@@ -21,5 +21,5 @@ public interface IUrlTransformer
     /// Takens a url-safe alias and transforms it into its original value
     /// </summary>
     /// <returns>A tuple containing the input's original alias value and the offset for tracking collisions</returns>
-    public ValueResult<(string, short)> FromUrlSafeAlias(string input);
+    public Attempt<(string, short)> FromUrlSafeAlias(string input);
 }

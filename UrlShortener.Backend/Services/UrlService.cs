@@ -22,56 +22,56 @@ public sealed class UrlService(
     private static readonly UriCreationOptions _uriOpts = new() { DangerousDisablePathAndQueryCanonicalization = true };
 
     /// <inheritdoc />
-    public Task<ValueResult<ShortenedUrl>> Create(string input, CancellationToken cancellationToken = default)
+    public Task<Attempt<ShortenedUrl>> Create(string input, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(input, in _uriOpts, out Uri? uri))
         {
-            return Task.FromResult<ValueResult<ShortenedUrl>>(new ErrorResult
+            return Task.FromResult<Attempt<ShortenedUrl>>(new Err
             {
                 Message = $"Invalid URL '{input}'",
-                Category = Constants.Errors.ClientError
+                Code = Constants.Errors.ClientError
             });
         }
         if (!uri.Scheme.StartsWith("http", StringComparison.InvariantCulture))
         {
-            return Task.FromResult<ValueResult<ShortenedUrl>>(new ErrorResult
+            return Task.FromResult<Attempt<ShortenedUrl>>(new Err
             {
                 Message = $"Submitted URL must use http(s) scheme. Found: '{input}'",
-                Category = Constants.Errors.ClientError,
+                Code = Constants.Errors.ClientError,
             });
         }
         return CreateCore(input, uri, cancellationToken);
     }
 
-    private async Task<ValueResult<ShortenedUrl>> CreateCore(string fullUrl, Uri uri, CancellationToken cancellationToken)
+    private async Task<Attempt<ShortenedUrl>> CreateCore(string fullUrl, Uri uri, CancellationToken cancellationToken)
     {
         try
         {
-            ValueResult<string> aliasResult = _transformer.CreateAlias($"{uri.DnsSafeHost}{uri.PathAndQuery}"); // leave out scheme
+            Attempt<string> aliasResult = _transformer.CreateAlias($"{uri.DnsSafeHost}{uri.PathAndQuery}"); // leave out scheme
             if (!aliasResult.IsSuccess(out string? @alias))
             {
-                _logger.LogError(aliasResult.Error.Exception, "Encountered unexpected error while creating alias for '{input}': {reason} -> {calledFrom}",
+                _logger.LogError(aliasResult.Err.Exception, "Encountered unexpected error while creating alias for '{input}': {reason} -> {calledFrom}",
                     fullUrl,
-                    aliasResult.Error.Message,
-                    aliasResult.Error.CalledFrom);
-                return ValueResult<ShortenedUrl>.FromError(aliasResult);
+                    aliasResult.Err.Message,
+                    aliasResult.Err.CalledFrom);
+                return Attempt<ShortenedUrl>.FromError(aliasResult);
             }
 
-            ValueResult<ShortenedUrl[]> queryResult = await _repository.GetByAlias(@alias, cancellationToken);
+            Attempt<ShortenedUrl[]> queryResult = await _repository.GetByAlias(@alias, cancellationToken);
             if (!queryResult.IsSuccess(out ShortenedUrl[]? existing))
             {
-                _logger.LogError(queryResult.Error.Exception, "Encountered unexpected error while querying for alias '{alias}': {reason} -> {calledFrom}",
+                _logger.LogError(queryResult.Err.Exception, "Encountered unexpected error while querying for alias '{alias}': {reason} -> {calledFrom}",
                     @alias,
-                    queryResult.Error.Message,
-                    queryResult.Error.CalledFrom);
-                return ValueResult<ShortenedUrl>.FromError(queryResult);
+                    queryResult.Err.Message,
+                    queryResult.Err.CalledFrom);
+                return Attempt<ShortenedUrl>.FromError(queryResult);
             }
 
             // alias is 16 chars, and then the 17th handles up to 10 collisions (seems like a safe amount of collision-checking here)
             if (existing.Length >= 10)
             {
                 _logger.LogCritical("Reached 10 collisions for alias '{alias}'. A new alias creation strategy is likely necessary.", @alias);
-                return new ErrorResult
+                return new Err
                 {
                     Message = $"Reached 10 collisions for alias '{@alias}'",
                 };
@@ -80,7 +80,7 @@ public sealed class UrlService(
             if (existing.FirstOrDefault(e => e.FullUrl.Equals(fullUrl, StringComparison.Ordinal)) is ShortenedUrl duplicate)
             {
                 _logger.LogDebug("Encountered an existing entry for url: '{fullUrl}' (row id = {rid}).", fullUrl, duplicate.RowId);
-                return new Ok<ShortenedUrl>(duplicate);
+                return duplicate;
             }
 
             ShortenedUrl newRow = new()
@@ -98,7 +98,7 @@ public sealed class UrlService(
         {
             // should not be catching at this point
             _logger.LogCritical(ex, "Uncaught exception while creating shortened url for '{fullUrl}'", fullUrl);
-            return new ErrorResult
+            return new Err
             {
                 Message = $"Uncaught exception while creating shortened url for '{fullUrl}'",
                 Exception = ex,
@@ -113,57 +113,61 @@ public sealed class UrlService(
     }
 
     /// <inheritdoc />
-    public Task<ValueResult<string>> Lookup(string @alias, CancellationToken cancellationToken = default)
+    public Task<Attempt<string>> Lookup(string @alias, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(@alias))
         {
             // returning "NotFound" on null/whitespace input
-            return Task.FromResult<ValueResult<string>>(new ErrorResult
+            return Task.FromResult<Attempt<string>>(new Err
             {
                 Message = $"Shortened url cannot be null or whitespace. Was: '{@alias ?? "<null>"}'",
-                Category = Constants.Errors.NotFound
+                Code = Constants.Errors.NotFound
             });
         }
 
-        ValueResult<(string, short)> decodeResult = _transformer.FromUrlSafeAlias(@alias);
+        Attempt<(string, short)> decodeResult = _transformer.FromUrlSafeAlias(@alias);
         if (!decodeResult.IsSuccess(out (string Alias, short Offset) decoded))
         {
-            _logger.LogError(decodeResult.Error.Exception, "Assuming this system did not create alias '{alias}' since it could not be decoded: {reason} --> {calledFrom}",
+            _logger.LogError(decodeResult.Err.Exception, "Assuming this system did not create alias '{alias}' since it could not be decoded: {reason} --> {calledFrom}",
                 @alias,
-                decodeResult.Error.Message,
-                decodeResult.Error.CalledFrom);
+                decodeResult.Err.Message,
+                decodeResult.Err.CalledFrom);
 
             // change to "NotFound" since our system could not have created this alias
-            decodeResult.Error.Category = Constants.Errors.NotFound;
+            Err notFound = new()
+            {
+                Message = decodeResult.Err.Message,
+                Code = Constants.Errors.NotFound,
+            };
 
-            return Task.FromResult(ValueResult<string>.FromError(decodeResult));
+            return Task.FromResult(Attempt<string>.FromError(notFound));
         }
 
         return LookupCore(@alias, decoded.Alias, decoded.Offset, cancellationToken);
     }
 
-    private async Task<ValueResult<string>> LookupCore(string @alias, string trueAlias, short offset, CancellationToken cancellationToken)
+    private async Task<Attempt<string>> LookupCore(string @alias, string trueAlias, short offset, CancellationToken cancellationToken)
     {
         try
         {
-            ValueResult<ShortenedUrl[]> queryResult = await _repository.GetByAlias(trueAlias, cancellationToken);
+            Attempt<ShortenedUrl[]> queryResult = await _repository.GetByAlias(trueAlias, cancellationToken);
             if (!queryResult.IsSuccess(out ShortenedUrl[]? found))
             {
-                _logger.LogError(queryResult.Error.Exception, "Encountered unexpected error while querying for alias '{alias}': {reason} -> {calledFrom}",
+                _logger.LogError(queryResult.Err.Exception, "Encountered unexpected error while querying for alias '{alias}': {reason} -> {calledFrom}",
                     @alias,
-                    queryResult.Error.Message,
-                    queryResult.Error.CalledFrom);
-                return ValueResult<string>.FromError(queryResult);
+                    queryResult.Err.Message,
+                    queryResult.Err.CalledFrom);
+                return Attempt<string>.FromError(queryResult);
             }
 
             if (found.Length == 0)
             {
                 // most likely scenario for not finding anything
                 _logger.LogDebug("No urls found with alias '{alias}'", @alias);
-                return new ErrorResult
+                return new Err
                 {
                     Message = $"No urls found with alias '{@alias}'",
-                    Category = Constants.Errors.NotFound,
+                    Code = Constants.Errors.NotFound,
                 };
             }
 
@@ -176,22 +180,22 @@ public sealed class UrlService(
                     DateHit = DateTime.UtcNow,
                     RowId = success.RowId
                 }, cancellationToken);
-                return new Ok<string>(success.FullUrl);
+                return success.FullUrl;
             }
             else
             {
                 _logger.LogWarning("Found {count} urls stored with the same alias '{alias}', but none with offset {offset}", found.Length, @alias, offset);
-                return new ErrorResult
+                return new Err
                 {
                     Message = $"No urls found with alias '{@alias}'",
-                    Category = Constants.Errors.NotFound,
+                    Code = Constants.Errors.NotFound,
                 };
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error while looking up stored url with alias '{alias}'", @alias);
-            return new ErrorResult
+            return new Err
             {
                 Message = $"Unexpected error while looking up stored url with alias '{alias}'",
             };
@@ -199,25 +203,25 @@ public sealed class UrlService(
     }
 
     /// <inheritdoc />
-    public Task<Result> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default)
+    public Task<Attempt> RecordHit(UrlTelemetry telemetry, CancellationToken cancellationToken = default)
     {
         if (telemetry is null)
         {
-            return Task.FromResult<Result>(new ErrorResult { Message = $"{nameof(telemetry)} cannot be null" });
+            return Task.FromResult<Attempt>(new Err { Message = $"{nameof(telemetry)} cannot be null" });
         }
         return RecordHitCore(telemetry, cancellationToken);
     }
 
-    private async Task<Result> RecordHitCore(UrlTelemetry telemetry, CancellationToken cancellationToken)
+    private async Task<Attempt> RecordHitCore(UrlTelemetry telemetry, CancellationToken cancellationToken)
     {
         try
         {
             ShortenedUrl? row = await _repository.Query().FirstOrDefaultAsync(u => u.RowId == telemetry.RowId, cancellationToken);
             if (row is null)
             {
-                return new ErrorResult
+                return new Err
                 {
-                    Category = Constants.Errors.NotFound,
+                    Code = Constants.Errors.NotFound,
                     Message = $"Row with row id {telemetry.RowId} was not found.",
                 };
             }
@@ -229,7 +233,7 @@ public sealed class UrlService(
         catch (Exception ex)
         {
             _logger.LogCritical(ex, "Encountered unexpected error while recording hit on url {rid}", telemetry.RowId);
-            return new ErrorResult
+            return new Err
             {
                 Exception = ex,
                 Message = $"Encountered unexpected error while recording hit on url {telemetry.RowId}",

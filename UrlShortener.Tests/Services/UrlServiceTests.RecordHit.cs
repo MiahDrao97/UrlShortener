@@ -15,7 +15,7 @@ public sealed partial class UrlServiceTests
     {
         GivenUrlTelemetry(null!);
         ThenNoExceptions(WhenRecordingHit);
-        ThenRecordHitResultIs<ErrorResult>(static err => err.Message?.Equals("telemetry cannot be null", StringComparison.Ordinal) == true);
+        ThenRecordHitResultIs<Err>(static err => err.Message?.Equals("telemetry cannot be null", StringComparison.Ordinal) == true);
     }
 
     [Test]
@@ -27,8 +27,8 @@ public sealed partial class UrlServiceTests
         // already no urls by default
 
         ThenNoExceptions(WhenRecordingHit);
-        ThenRecordHitResultIs<ErrorResult>(static err => err.Message?.Equals("Row with row id 2 was not found.", StringComparison.Ordinal) == true
-            && err.Category == Constants.Errors.NotFound);
+        ThenRecordHitResultIs<Err>(static err => err.Message?.Equals("Row with row id 2 was not found.", StringComparison.Ordinal) == true
+            && err.Code == Constants.Errors.NotFound);
     }
 
     [Test]
@@ -57,7 +57,7 @@ public sealed partial class UrlServiceTests
             withException ? new TaskCanceledException() : null);
 
         ThenNoExceptions(WhenRecordingHit);
-        ThenRecordHitResultIs<ErrorResult>(err => err.Message?.Equals("It failed!", StringComparison.Ordinal) == true
+        ThenRecordHitResultIs<Err>(err => err.Message?.Equals("It failed!", StringComparison.Ordinal) == true
             && withException ? err.Exception?.GetType() == typeof(TaskCanceledException) : err.Exception is null);
     }
 
@@ -85,7 +85,7 @@ public sealed partial class UrlServiceTests
         ]);
 
         ThenNoExceptions(WhenRecordingHit);
-        ThenRecordHitResultIs<Ok>();
+        ThenRecordHitResultIs<Attempt>();
         Repo.Verify(r => r.Update(It.Is<ShortenedUrl>(s => s.RowId == rowId && s.Hits == 1 && s.LastHit == now), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

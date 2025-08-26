@@ -53,7 +53,7 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
 
     private void GivenUrlInput(string input) => _urlInput = new ShortenedUrlModel { UrlInput = input, Alias = null!, FullUrl = null! };
 
-    private void GivenUrlServiceReturns(ValueResult<ShortenedUrl> output)
+    private void GivenUrlServiceReturns(Attempt<ShortenedUrl> output)
     {
         UrlService.Setup(static u => u.Create(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(output);
     }
@@ -93,7 +93,7 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
     {
         string errMessage = "blarf";
         GivenUrlInput(url!);
-        GivenUrlServiceReturns(new ErrorResult { Message = errMessage, Category = Constants.Errors.ClientError });
+        GivenUrlServiceReturns(new Err { Message = errMessage, Code = Constants.Errors.ClientError });
 
         ThenNoExceptions(WhenCreating);
         Assert.That(_actionResult is ViewResult view
@@ -108,7 +108,7 @@ public sealed partial class UrlControllerTests : TestBase<UrlController>
     public void Create_ReturnsErrorPage_WhenUnexpectedErrorOccurs()
     {
         GivenUrlInput("Asdf");
-        GivenUrlServiceReturns(new ErrorResult { Message = "blarf" });
+        GivenUrlServiceReturns(new Err { Message = "blarf" });
 
         ThenNoExceptions(WhenCreating);
         Assert.That(_actionResult is ViewResult view

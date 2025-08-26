@@ -17,7 +17,7 @@ public sealed partial class UrlServiceTests
     {
         GivenAlias(input!);
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(err => err.Message?.Equals($"Shortened url cannot be null or whitespace. Was: '{input ?? "<null>"}'", StringComparison.Ordinal) == true);
+        ThenLookupResultIs<Err>(err => err.Message?.Equals($"Shortened url cannot be null or whitespace. Was: '{input ?? "<null>"}'", StringComparison.Ordinal) == true);
     }
 
     [Test]
@@ -30,8 +30,8 @@ public sealed partial class UrlServiceTests
         GivenAlias(input);
 
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(err => err.Message?.Equals($"Alias '{input}' is not base64-encoded.", StringComparison.Ordinal) == true
-            && err.Category == Constants.Errors.NotFound);
+        ThenLookupResultIs<Err>(err => err.Message?.Equals($"Alias '{input}' is not base64-encoded.", StringComparison.Ordinal) == true
+            && err.Code == Constants.Errors.NotFound);
     }
 
     [Test]
@@ -44,8 +44,8 @@ public sealed partial class UrlServiceTests
         GivenAlias(b64Input);
 
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(static err => err.Message?.Contains($"is not at least 17 bytes (ASCII characters).", StringComparison.Ordinal) == true
-            && err.Category == Constants.Errors.NotFound);
+        ThenLookupResultIs<Err>(static err => err.Message?.Contains($"is not at least 17 bytes (ASCII characters).", StringComparison.Ordinal) == true
+            && err.Code == Constants.Errors.NotFound);
     }
 
     [Test]
@@ -59,8 +59,8 @@ public sealed partial class UrlServiceTests
         GivenAlias(b64Input);
 
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(err => err.Message?.Contains($"did not parse to a valid offset for alias '{b64Input}' (decoded: {input}).", StringComparison.Ordinal) == true
-            && err.Category == Constants.Errors.NotFound);
+        ThenLookupResultIs<Err>(err => err.Message?.Contains($"did not parse to a valid offset for alias '{b64Input}' (decoded: {input}).", StringComparison.Ordinal) == true
+            && err.Code == Constants.Errors.NotFound);
     }
 
     [Test]
@@ -76,7 +76,7 @@ public sealed partial class UrlServiceTests
             withException ? new TaskCanceledException() : null);
 
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(err => err.Message?.Equals("It failed!", StringComparison.Ordinal) == true
+        ThenLookupResultIs<Err>(err => err.Message?.Equals("It failed!", StringComparison.Ordinal) == true
             && withException ? err.Exception?.GetType() == typeof(TaskCanceledException) : err.Exception is null);
     }
 
@@ -90,8 +90,8 @@ public sealed partial class UrlServiceTests
 
         // already empty repository by default
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(static err => err.Message?.Equals($"No urls found with alias 'asdf'", StringComparison.Ordinal) == true
-            && err.Category == Constants.Errors.NotFound);
+        ThenLookupResultIs<Err>(static err => err.Message?.Equals($"No urls found with alias 'asdf'", StringComparison.Ordinal) == true
+            && err.Code == Constants.Errors.NotFound);
     }
 
     [Test]
@@ -113,8 +113,8 @@ public sealed partial class UrlServiceTests
 
         // already empty repository by default
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<ErrorResult>(static err => err.Message?.Equals($"No urls found with alias 'asdf'", StringComparison.Ordinal) == true
-            && err.Category == Constants.Errors.NotFound);
+        ThenLookupResultIs<Err>(static err => err.Message?.Equals($"No urls found with alias 'asdf'", StringComparison.Ordinal) == true
+            && err.Code == Constants.Errors.NotFound);
     }
 
     [Test]
@@ -138,7 +138,7 @@ public sealed partial class UrlServiceTests
 
         // already empty repository by default
         ThenNoExceptions(WhenLookingUp);
-        ThenLookupResultIs<Ok<string>>(ok => ok.Value.Equals(url, StringComparison.Ordinal));
+        ThenLookupResultIs<string>(ok => ok.Equals(url, StringComparison.Ordinal));
         // make sure we emit telemetry event to channel
         Assert.That(GetRegistered<Channel<UrlTelemetry>>().Reader.Count, Is.EqualTo(1));
     }
